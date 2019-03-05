@@ -1,0 +1,5 @@
+oil algo ideas:
+1) level hasn't been broken - with a big volume instant reversal of local trend. false positives - possible level retest with a break.
+2) spread between ice and moex brent in instant moment that normalises in flat trend
+3) post-clearing rising spread + flat trend
+4) trading range(small, big, medium), with false breakouts
