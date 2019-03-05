@@ -3,3 +3,5 @@ oil algo ideas:
 2) spread between ice and moex brent in instant moment that normalises in flat trend
 3) post-clearing rising spread + flat trend
 4) trading range(small, big, medium), with false breakouts
+5) hitting level, then bouncing back, then trying to pass level below first one and not succeeding - see https://imgur.com/a/mvZh4yu
+6) brent options during volatility - straddle & strangle

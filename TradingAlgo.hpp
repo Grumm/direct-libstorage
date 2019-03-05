@@ -59,6 +59,7 @@ struct Candle{
 
 	Candle &operator+(const Tick &t){
 		//TODO
+		return *this;
 	}
 };
 
@@ -77,7 +78,7 @@ public:
 };
 
 std::ostream & operator<< (std::ostream &out, const Tick &tick);
-void print_sequence(const TicksSequence &seq);
+void print_sequence(const TicksSequence &seq, int64_t limit = std::numeric_limits<int64_t>::max());
 
 void serialize(const std::vector<std::string> &infiles,
 					const std::vector<std::string> &outfiles);

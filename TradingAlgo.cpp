@@ -34,13 +34,15 @@ std::ostream & operator<< (std::ostream &out, const Tick &tick)
 {
     out << tick.time << " " << tick.price << " " << tick.volume;
     return out;
-}
+} 
 
-void print_sequence(const TicksSequence &seq){
+void print_sequence(const TicksSequence &seq, int64_t limit){
 	std::cout << seq.ticker << std::endl;
+	int64_t i = 0;
 	for(auto tick: seq.data){
 		std::cout << tick << std::endl;
-		return;
+		if(++i > limit)
+			return;
 	}
 }
 
