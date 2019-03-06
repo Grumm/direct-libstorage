@@ -1,8 +1,10 @@
 #!/bin/bash
 
 root=`pwd`
-indir=$root/data/
-outdir=$root/raw-data/
+#indir=$root/data/
+#outdir=$root/raw-data/
+indir=/cygdrive/g/trading/data/brent-ice/
+outdir=/cygdrive/g/trading/data/brent-ice-raw/
 
 
 #infiles=`ls $indir --quoting-style={escape,shell,c}`

@@ -19,6 +19,7 @@ struct Tick{
 	uint64_t volume;
 
 	/*
+	https://www.cmegroup.com/month-codes.html
 	<TICKER>;<PER>;<DATE>;<TIME>;<LAST>;<VOL>
 	NYMEX.CL H19;0;15/01/19;00:00:07;51.540000000;1
 	*/

@@ -1,5 +1,6 @@
 #!/bin/bash
 
-cd build
+cd obuild
+cmake ../ -DCMAKE_BUILD_TYPE=Debug
 make
 cp oa.exe ../

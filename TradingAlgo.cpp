@@ -40,9 +40,9 @@ void print_sequence(const TicksSequence &seq, int64_t limit){
 	std::cout << seq.ticker << std::endl;
 	int64_t i = 0;
 	for(auto tick: seq.data){
-		std::cout << tick << std::endl;
-		if(++i > limit)
+		if(i++ >= limit)
 			return;
+		std::cout << tick << std::endl;
 	}
 }
 
