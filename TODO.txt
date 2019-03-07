@@ -1,7 +1,12 @@
 oil algo ideas:
 1) level hasn't been broken - with a big volume instant reversal of local trend. false positives - possible level retest with a break.
+ex: https://imgur.com/a/UaQIBW1
+if after that volumes raising - most likely a false a breakout
+
 2) spread between ice and moex brent in instant moment that normalises in flat trend
 3) post-clearing rising spread + flat trend
 4) trading range(small, big, medium), with false breakouts
 5) hitting level, then bouncing back, then trying to pass level below first one and not succeeding - see https://imgur.com/a/mvZh4yu
 6) brent options during volatility - straddle & strangle
+7) on minute candles: when volume increases and price moves after a flat, movement continues(sometimes could be reverse?) - could have something to do with changing delta
+8) hitting same price many times within short period of time (+ maybe big volume to a reverse) => bounce back, need to statistically calculate how often it is breakthrough or bounce back
