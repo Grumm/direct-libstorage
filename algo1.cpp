@@ -166,14 +166,14 @@ float calculate_price_weighted_window(const TicksSequence &seq, size_t index, si
     for(ssize_t i = index - 1; i >= 0 && i >= (ssize_t)(index - 1 + 1 - window); i--){
         auto tick = seq.data[i];
         volume += tick.volume;
-        weight += tick.price * tick.volume;
+        weight += tick.price;// * tick.volume;
     }
-    return weight / volume;
+    return weight;// / volume;
 }
 
 std::vector<Prediction> find_predictions(const TicksSequence &seq){
     constexpr uint64_t THRESH_VOL1 = 100;
-    constexpr size_t WINDOW_SIZE1 = 30;
+    constexpr size_t WINDOW_SIZE1 = 500;
     constexpr float THRESH_TREND_PRICE1 = 0.05;
 
     std::vector<Prediction> result;
@@ -183,7 +183,7 @@ std::vector<Prediction> find_predictions(const TicksSequence &seq){
         if(tick.volume > THRESH_VOL1){
             /* calculate trend before */
             float wp_before = calculate_price_weighted_window(seq, i, WINDOW_SIZE1);
-            trend_t prev_trend;
+            trend_t prev_trend = trend_flat;
             if(abs(wp_before - tick.price) < THRESH_TREND_PRICE1){
                 prev_trend = trend_flat;
             } else if(wp_before < tick.price){
@@ -278,14 +278,246 @@ PredictionsStats calculate_pridictions_stats(const TicksSequence &seq,
 
 print_stats()
 #endif
+
+class TradingStrategyInterface{
+public:
+    const TicksSequence &seq;
+    size_t current_index;
+    float balance;
+
+    TradingStrategyInterface(const TicksSequence &seq, size_t index):
+        seq(seq), current_index(index), balance(0.0){}
+
+    virtual void nextTick(size_t newindex) = 0;
+    virtual float finish() = 0; //close all positions and return balance
+};
+
+class TradingStrategyGeneric: public TradingStrategyInterface{
+    static constexpr float comission = 0;//0.005;
+    static constexpr float entry_error = 0;//0.02;
+
+    float stop;
+    float take;
+    bt::time_duration timeout;
+    bt::time_duration execution_delay;
+
+    enum PositionState{
+        state_nopos,
+        state_open,
+    };
+
+    enum PositionDirection{
+        pos_long,
+        pos_short,
+    };
+    struct Position{
+        enum PositionState state;
+        enum PositionDirection dir;
+        float open_price;
+        float sl;
+        float tp;
+        Tick tick_opened;
+    };
+
+    enum PositionCloseReason{
+        close_stop,
+        close_take,
+        close_reverse_signal,
+        close_timeout,
+    };
+
+    struct PositionResult{
+        Position pos;
+        Tick tick_closed;
+        enum PositionCloseReason reason;
+    };
+
+    Position position;
+    std::vector<PositionResult> results;
+
+    float calculate_profit(const PositionResult &pr){
+        float result = 0;
+        if(pr.pos.dir == pos_long){
+            result = pr.tick_closed.price - pr.pos.open_price; //or pr.pos.tick_opened.price
+        } else {
+            result = pr.pos.open_price - pr.tick_closed.price;
+        }
+
+        return result - comission - entry_error;
+    }
+
+    void close_position(enum PositionCloseReason reason){
+        if(position.state != state_open){
+            return;
+            throw std::invalid_argument("closing not open position");
+        }
+
+        auto tick = seq.data[current_index];
+        
+        PositionResult pr;
+        pr.pos = position;
+        pr.tick_closed = tick;
+        pr.reason = reason;
+        results.push_back(pr);
+
+        float profit = calculate_profit(pr);
+        if(0 && abs(profit) >= 0.10){
+            std::cout << "Closed " << std::fixed << std::setprecision(2)
+                << profit << " reason ";
+                switch (reason){
+                    case close_stop:
+                        std::cout << "stop";
+                        break;
+                    case close_take:
+                        std::cout << "stop";
+                        break;
+                    case close_reverse_signal:
+                        std::cout << "reverse_signal";
+                        break;
+                    case close_timeout:
+                        std::cout << "timeout";
+                        break;
+                }
+            std::cout << std::endl;
+        }
+
+        balance += profit;
+
+        position.state = state_nopos;
+    }
+
+    void open_position(trend_t future_trend_predicted, const Tick &tick){
+        if(position.state == state_open) {
+            //TODO check if oppisite direction
+            auto newpos = future_trend_predicted == trend_long ? pos_long : pos_short;
+            if(newpos == position.dir){
+                //nvm
+                return;
+            } else {
+                close_position(close_reverse_signal);
+                //below we open position
+            }
+        }
+        {
+            position.state = state_open;
+            position.tick_opened = tick;
+            position.dir = (future_trend_predicted == trend_long ? pos_long : pos_short);
+            position.open_price = seq.data[current_index].price; //ideal...........
+            position.sl = position.open_price +
+                    (position.dir == pos_long ? - 1 * stop : + 1 *stop);
+            position.tp = position.open_price +
+                    (position.dir == pos_long ? + 1 * take : - 1 *take);
+            //position.opened = tick.time; in case we have a delay(like 300ms)
+        }
+    }
+
+    void try_open_position(const Tick &tick){
+        static constexpr uint64_t THRESH_VOL1 = 100;
+        static constexpr size_t WINDOW_SIZE1 = 500;
+        static constexpr float THRESH_TREND_PRICE1 = 0.10;
+        if(tick.volume > THRESH_VOL1){
+            /* calculate trend before */
+            float wp_before = calculate_price_weighted_window(seq, current_index, WINDOW_SIZE1);
+            trend_t prev_trend = trend_flat;
+            if(abs(wp_before - tick.price) < THRESH_TREND_PRICE1){
+                prev_trend = trend_flat;
+            } else if(wp_before < tick.price){
+                prev_trend = trend_long;
+            } else if(wp_before > tick.price){
+                prev_trend = trend_short;
+            }
+            trend_t future_trend_predicted = trend_flat;
+            switch(prev_trend){
+                case trend_flat:
+                    //prediction - price goes the way of i'th order
+                    if(wp_before < tick.price){
+                        future_trend_predicted = trend_long;
+                    } else if(wp_before > tick.price) {
+                        future_trend_predicted = trend_short;
+                    }
+                    break;
+                case trend_long:
+                    //prediction - trend reversal
+                    future_trend_predicted = trend_short;
+                    break;
+                case trend_short:
+                    future_trend_predicted = trend_long;
+                    break;
+            }
+            if(future_trend_predicted != trend_flat){
+                //TODO open position
+                open_position(future_trend_predicted, tick);
+            }
+        }
+    }
+public:
+    TradingStrategyGeneric(const TicksSequence &seq, size_t index,
+        float stop, float take,  bt::time_duration timeout,
+        bt::time_duration execution_delay):
+            TradingStrategyInterface(seq, index),
+            stop(stop), take(take), timeout(timeout),
+            execution_delay(execution_delay) {}
+
+    void nextTick(size_t newindex){
+        current_index = newindex;
+        auto tick = seq.data[current_index];
+
+        if(position.state == state_open){
+            //check timeout
+            bt::time_period tp(position.tick_opened.time, timeout);
+            if(!tp.contains(tick.time)){
+#if 0
+                std::cout << "opened " << position.tick_opened.time
+                << " now " << tick.time
+                << " timeout " << timeout
+                << " period " << tp
+                <<std::endl;
+#endif
+                close_position(close_timeout);
+            } else {
+                //check sl/tp
+                if(position.dir == pos_long){
+                    if(tick.price < position.sl)
+                        close_position(close_stop);
+                    else if(tick.price > position.tp){
+                        close_position(close_take);
+                        //TODO or could do this - close half and s/l breakeven
+                    }
+                } else {
+                    if(tick.price > position.sl)
+                        close_position(close_stop);
+                    else if(tick.price < position.tp){
+                        close_position(close_take);
+                    }
+                }
+            }
+        }
+        try_open_position(tick); //f1
+        //f2, etc. TODO
+    }
+
+    float finish(){
+        close_position(close_timeout);
+        return balance;
+    }
+};
+
+float emulate_trading_entry_points_by_strategy(TradingStrategyInterface *tsi){
+    for(size_t i = 0; i < tsi->seq.data.size(); i++){
+        tsi->nextTick(i);
+    }
+    return tsi->finish();
+}
+
 /*
 1) level hasn't been broken - with a big volume instant reversal of local trend.
     false positives - possible level retest with a break.
 */
 void do_algo1(const std::vector<TicksSequence> &seqs){
+    float tresult = 0.0;
     for(auto seq: seqs){
         print_sequence(seq, 1);
-
+#if 0
         test_brent_may(seq);
         auto prs = find_predictions(seq);
 
@@ -299,11 +531,22 @@ void do_algo1(const std::vector<TicksSequence> &seqs){
         check_predictions_simple(seq, prs, position_durations);
 
         print_predictions(seq, prs);
+#endif
 #if 0
         auto stats = calculate_pridictions_stats(seq, prs, position_durations);
         print_stats(stats);
 #endif
+
+        auto *ts1 = new TradingStrategyGeneric(seq, 0, 0.20, 0.40, 
+            bt::time_duration(01, 15, 59, 0), bt::time_duration(00, 00, 2, 0));
+
+        auto lres = emulate_trading_entry_points_by_strategy(ts1);
+        std::cout << std::fixed << std::setprecision(2)
+            << "result = " << lres << std::endl;
+        tresult += lres;
     }
+    std::cout << std::fixed << std::setprecision(2)
+        << "total result = " << tresult << std::endl;
 }
 
 

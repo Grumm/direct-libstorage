@@ -2,6 +2,7 @@ oil algo ideas:
 1) level hasn't been broken - with a big volume instant reversal of local trend. false positives - possible level retest with a break.
 ex: https://imgur.com/a/UaQIBW1
 if after that volumes raising - most likely a false a breakout
+https://imgur.com/a/GQEQwoj - double layer - no immediate bounce, but second actually reverts the trend
 
 2) spread between ice and moex brent in instant moment that normalises in flat trend
 3) post-clearing rising spread + flat trend
