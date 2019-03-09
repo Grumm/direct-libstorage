@@ -132,153 +132,6 @@ void test_brent_may(const TicksSequence &seq){
     }
 }
 
-enum trend_t{
-    trend_flat = 0,
-    trend_long,
-    trend_short,
-};
-
-struct PredictionResult{
-    bt::time_duration duration;
-    bt::time_duration tp_after;
-    float tp;
-    float sl;
-    float tp_to_sl; // tp/sl
-};
-
-struct Prediction{
-    size_t index;
-    trend_t trend;
-
-    std::vector<PredictionResult> results;
-
-    Prediction(): index(0), trend(trend_flat){}
-
-    Prediction(size_t index, trend_t trend): index(index), trend(trend){}
-};
-
-float calculate_price_weighted_window(const TicksSequence &seq, size_t index, size_t window){
-    if(index == 0)
-        return seq.data[index].price;
-
-    uint64_t volume = 0;
-    float weight = 0;
-    for(ssize_t i = index - 1; i >= 0 && i >= (ssize_t)(index - 1 + 1 - window); i--){
-        auto tick = seq.data[i];
-        volume += tick.volume;
-        weight += tick.price;// * tick.volume;
-    }
-    return weight;// / volume;
-}
-
-std::vector<Prediction> find_predictions(const TicksSequence &seq){
-    constexpr uint64_t THRESH_VOL1 = 100;
-    constexpr size_t WINDOW_SIZE1 = 500;
-    constexpr float THRESH_TREND_PRICE1 = 0.05;
-
-    std::vector<Prediction> result;
-    for(size_t i = 0; i < seq.data.size(); i++){
-        auto tick = seq.data[i];
-
-        if(tick.volume > THRESH_VOL1){
-            /* calculate trend before */
-            float wp_before = calculate_price_weighted_window(seq, i, WINDOW_SIZE1);
-            trend_t prev_trend = trend_flat;
-            if(abs(wp_before - tick.price) < THRESH_TREND_PRICE1){
-                prev_trend = trend_flat;
-            } else if(wp_before < tick.price){
-                prev_trend = trend_long;
-            } else if(wp_before > tick.price){
-                prev_trend = trend_short;
-            }
-            trend_t future_trend_predicted = trend_flat;
-            switch(prev_trend){
-                case trend_flat:
-                    //prediction - price goes the way of i'th order
-                    if(wp_before < tick.price){
-                        future_trend_predicted = trend_long;
-                    } else if(wp_before > tick.price) {
-                        future_trend_predicted = trend_short;
-                    }
-                    break;
-                case trend_long:
-                    //prediction - trend reversal
-                    future_trend_predicted = trend_short;
-                    break;
-                case trend_short:
-                    future_trend_predicted = trend_long;
-                    break;
-            }
-            if(future_trend_predicted != trend_flat){
-                Prediction p(i, future_trend_predicted);
-                result.push_back(p);
-            }
-        }
-    }
-    return result;
-}
-
-void check_predictions_simple(const TicksSequence &seq, std::vector<Prediction> &prs,
-            const std::vector<bt::time_duration> &position_durations){
-
-    for(auto &prediction: prs){
-        for(auto duration: position_durations){
-            auto [tp, sl, hit_tp_after, hit_max_sl] = is_profit(seq,
-                prediction.index, prediction.trend == trend_long, duration, 10);
-
-            PredictionResult pr;
-            pr.tp = tp;
-            pr.sl = sl;
-            sl += 0.01;
-            pr.tp_to_sl = tp / sl;
-            pr.duration = duration;
-            pr.tp_after = hit_tp_after;
-
-            prediction.results.push_back(pr);
-        }
-    }
-}
-
-void print_predictions(const TicksSequence &seq, const std::vector<Prediction> &prs){
-    std::cout << "Predicions:" << std::endl;
-    for(auto prediction: prs){
-        auto tick = seq.data[prediction.index];
-        std::cout << "At [" << prediction.index << "]" << tick.time 
-            << " price " << tick.price << " volume " << tick.volume
-            << " " << (prediction.trend == trend_long ? "long" : "short") << std::endl;
-        std::cout << "Results: " << std::endl;
-        for(auto prres: prediction.results){
-            std::cout << "     "
-            << "TP/SL " << prres.tp_to_sl
-            << " TP " << prres.tp
-            << " SL " << prres.sl
-            << " after " << prres.tp_after
-            << " out of " << prres.duration
-            << std::endl;
-        }
-    }
-}
-
-#if 0
-struct PredictionsStats{
-    struct _PredictionsStats{
-
-    };
-    const std::vector<bt::time_duration> &tds;
-    std::map<bt::time_duration, _PredictionsStats> &stts_map;
-
-    PredictionsStats(const std::vector<bt::time_duration> &tds): tds(tds){}
-};
-
-PredictionsStats calculate_pridictions_stats(const TicksSequence &seq,
-        const std::vector<Prediction> &prs,
-        const std::vector<bt::time_duration> &tds){
-    PredictionsStats stats(tds);
-}
-
-print_stats()
-#endif
-
 class TradingStrategyInterface{
 public:
     const TicksSequence &seq;
@@ -292,6 +145,7 @@ public:
     virtual float finish() = 0; //close all positions and return balance
 };
 
+/* TODO move out actual algo out to template????? */
 class TradingStrategyGeneric: public TradingStrategyInterface{
     static constexpr float comission = 0;//0.005;
     static constexpr float entry_error = 0;//0.02;
@@ -384,7 +238,13 @@ class TradingStrategyGeneric: public TradingStrategyInterface{
         balance += profit;
 
         position.state = state_nopos;
-    }
+    }    
+
+    enum trend_t{
+        trend_flat = 0,
+        trend_long,
+        trend_short,
+    };
 
     void open_position(trend_t future_trend_predicted, const Tick &tick){
         if(position.state == state_open) {
@@ -409,6 +269,20 @@ class TradingStrategyGeneric: public TradingStrategyInterface{
                     (position.dir == pos_long ? + 1 * take : - 1 *take);
             //position.opened = tick.time; in case we have a delay(like 300ms)
         }
+    }
+
+    float calculate_price_weighted_window(const TicksSequence &seq, size_t index, size_t window){
+        if(index == 0)
+            return seq.data[index].price;
+
+        uint64_t volume = 0;
+        float weight = 0;
+        for(ssize_t i = index - 1; i >= 0 && i >= (ssize_t)(index - 1 + 1 - window); i--){
+            auto tick = seq.data[i];
+            volume += tick.volume;
+            weight += tick.price;// * tick.volume;
+        }
+        return weight;// / volume;
     }
 
     void try_open_position(const Tick &tick){
@@ -579,3 +453,26 @@ sends it to signal processor
 DATASOURCE -> SIGNALDETECTOR ----signal-----> PROCESSOR
 
  */
+
+
+/*
+TODO
+1) implement trend detector - various time scale, for different volatility
+2) volatility measure quantitavely for any period of time
+3) volume trading levels for current contract (for market maker simulation)
+4) level detection for volumes - today, past few days, current trading range
+    with level strength
+5) detect strong levels - quantitavely
+6) just generic indicators - 200ma, 50ma, fibbonaci, volume reversals
+7) detect trading range levels: |\/\/\/\/\/\/\/ pattern
+8) other contracts at the same time - far end of curve, CL/BR, spread
+8) options volumes TODO get contract options trading ticks/eod stats
+
+
+combine function of all of the above, run simulation(taking into account
+true positives, false positives) to detect which properties
+actually have effect on result
+function to search for parameters is under question, but could be simply brute force,
+or genetic programming, or more complex AI method.........
+
+*/

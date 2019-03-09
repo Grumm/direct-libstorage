@@ -3,6 +3,7 @@ oil algo ideas:
 ex: https://imgur.com/a/UaQIBW1
 if after that volumes raising - most likely a false a breakout
 https://imgur.com/a/GQEQwoj - double layer - no immediate bounce, but second actually reverts the trend
+https://imgur.com/a/oOUs2ZP - small trend up, but global is down
 
 2) spread between ice and moex brent in instant moment that normalises in flat trend
 3) post-clearing rising spread + flat trend
@@ -11,3 +12,13 @@ https://imgur.com/a/GQEQwoj - double layer - no immediate bounce, but second act
 6) brent options during volatility - straddle & strangle
 7) on minute candles: when volume increases and price moves after a flat, movement continues(sometimes could be reverse?) - could have something to do with changing delta
 8) hitting same price many times within short period of time (+ maybe big volume to a reverse) => bounce back, need to statistically calculate how often it is breakthrough or bounce back
+
+
+README
+http://jonathankinlay.com/2018/09/the-mathematics-of-scalping/
+The key conclusions from this analysis are:
+
+Scalping is essentially a volatility trade
+The setting of optimal profit targets are stop loss limits depend critically on the volatility of the underlying, and needs to be handled dynamically, depending on current levels of market volatility
+At low levels of volatility we should set tight profit targets and wide stop loss limits, looking to make a high percentage of small gains, of perhaps 2-3 ticks.
+As volatility rises, we need to reverse that position, setting more ambitious profit targets and tight stops, aiming for the occasional big win.
