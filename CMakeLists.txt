@@ -5,7 +5,7 @@ project(oa VERSION 1.0 LANGUAGES CXX)
 FIND_PACKAGE( Boost 1.60 COMPONENTS program_options program_options date_time REQUIRED )
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
-ADD_EXECUTABLE(oa main.cpp TradingAlgo.cpp algo1.cpp)
+ADD_EXECUTABLE(oa main.cpp TradingAlgo.cpp algo1.cpp algo2.cpp)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
@@ -16,5 +16,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
 
 set_property(TARGET oa PROPERTY CXX_STANDARD 17)
+target_include_directories(oa PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 TARGET_LINK_LIBRARIES(oa LINK_PUBLIC ${Boost_LIBRARIES})

@@ -100,7 +100,7 @@ void run_algo(const std::vector<std::string> &files){
     //for each file read and store info in memory
     try{
         auto seqs = deserialize(files);
-        do_algo1(seqs);
+        do_algo2(seqs);
     }catch(const std::exception& e) {
         std::cout << e.what() << std::endl;
     }

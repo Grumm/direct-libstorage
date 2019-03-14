@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include <vector>
 #include <chrono>
@@ -87,6 +89,7 @@ void serialize(const std::vector<std::string> &infiles,
                     const std::vector<std::string> &outfiles);
 void run_algo(const std::vector<std::string> &files);
 void do_algo1(const std::vector<TicksSequence> &seqs);
+void do_algo2(const std::vector<TicksSequence> &seqs);
 
 #if 0
 

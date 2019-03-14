@@ -476,3 +476,7 @@ function to search for parameters is under question, but could be simply brute f
 or genetic programming, or more complex AI method.........
 
 */
+
+/*
+https://imgur.com/a/XW1zsvL testing data for 08/03/2019
+*/
