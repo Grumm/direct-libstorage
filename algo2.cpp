@@ -9,9 +9,9 @@ void do_algo2(const std::vector<TicksSequence> &seqs){
     for(auto seq: seqs){
         ta::TrendDetector td(seq);
 
-        bt::ptime t1(bg::date(2019,bg::Mar,12), bt::time_duration(14,07,00));
-        bt::time_duration td1(00,30,00);
-        td.detect(t1, td1, 10, 9);
+        bt::ptime t1(bg::date(2019,bg::Mar,12), bt::time_duration(19,30,00));
+        bt::time_duration td1(12,00,00);
+        td.detect(t1, td1, 100, 90, 300);
         //td.detect(240000, 20, 4, 2);
     }
 }
