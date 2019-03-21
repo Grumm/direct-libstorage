@@ -12,6 +12,9 @@ https://imgur.com/a/oOUs2ZP - small trend up, but global is down
 6) brent options during volatility - straddle & strangle
 7) on minute candles: when volume increases and price moves after a flat, movement continues(sometimes could be reverse?) - could have something to do with changing delta
 8) hitting same price many times within short period of time (+ maybe big volume to a reverse) => bounce back, need to statistically calculate how often it is breakthrough or bounce back
+9) after price gap in brent moex, setup orders below curent value to catch stops
+10) после первой планки на больших объемах вероятность второй планки или отката
+11) детект айсбергов и игра вокруг них - пробой вверх или вниз
 
 
 README
