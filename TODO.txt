@@ -15,6 +15,7 @@ https://imgur.com/a/oOUs2ZP - small trend up, but global is down
 9) after price gap in brent moex, setup orders below curent value to catch stops
 10) после первой планки на больших объемах вероятность второй планки или отката
 11) детект айсбергов и игра вокруг них - пробой вверх или вниз
+12) trend is your friend
 
 
 README
