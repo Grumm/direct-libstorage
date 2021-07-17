@@ -270,7 +270,6 @@ class TradingStrategyGeneric: public TradingStrategyInterface{
             //position.opened = tick.time; in case we have a delay(like 300ms)
         }
     }
-
     float calculate_price_weighted_window(const TicksSequence &seq, size_t index, size_t window){
         if(index == 0)
             return seq.data[index].price;

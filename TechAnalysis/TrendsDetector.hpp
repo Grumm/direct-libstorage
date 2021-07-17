@@ -81,140 +81,7 @@ public:
 
     TrendDetector(const TicksSequence &seq):
         seq(seq){}
-
-    std::vector<std::pair<float, WT>> average_weighted_window(
-        const std::vector<std::pair<float, WT>> &points,
-            size_t window, size_t step, bool is_weighted = false){
-        std::vector<std::pair<float, WT>> newpoints;
-
-        for(size_t i = 0; i < points.size(); i += step){
-            float sum = 0;
-            uint64_t weight = 0;
-            for(size_t j = 0; j < window && (i + window < points.size()); j++){
-                auto [price, volume] = points[i + j];
-
-                if(is_weighted)
-                    sum += volume * price;
-                else
-                    sum += price;
-                weight += volume;
-            }
-            if(weight != 0)
-                newpoints.push_back(std::make_pair(sum / (is_weighted? weight : window),
-                                        ((WT) weight / window) + 1));//weight
-        }
-
-        return newpoints;
-    }
-
-    /* https://prog-cpp.ru/mnk/ */
-    std::pair<float, float>
-    calculate_linear_coeff(const std::vector<std::pair<float, WT>> &points,
-            std::pair<size_t, size_t> range){
-        //calculate avg
-        //for each point calculate diff between it and avg -> abs()
-
-        float sumx = 0;
-        float sumx2 = 0;
-        float sumy = 0;
-        float sumxy = 0;
-
-        for(size_t i = range.first; i <= range.second; i++){
-            float y = points[i].first;//first only do unweighted TODO
-            float x = i;
-            sumx += x;
-            sumx2 += x*x;
-            sumy += y;
-            sumxy += x*y;
-        }
-
-        float n = range.second - range.first + 1;
-        float a = (n*sumxy - sumx * sumy) / (n * sumx2 - sumx * sumx);
-        float b = (sumy - a * sumx) / n;
-
-        return std::make_pair(a, b);
-    }
-
-    std::map<std::pair<float, float>, DistanceResults>
-    calulcate_least_distance(const std::vector<std::pair<float, WT>> &points,
-            std::pair<size_t, size_t> range, const std::pair<float, float> &lcoeff,
-            const std::vector<std::pair<float, float>> &percentiles /* <percent, no more than> */
-            ){
-        //calculate avg
-        //for each point calculate diff between it and avg -> abs()
-
-        std::vector<float> dvect(points.size());
-        std::map<std::pair<float, float>, DistanceResults> sigma;
-        float a = lcoeff.first;
-        float b = lcoeff.second;
-        for(size_t i = range.first; i <= range.second; i++){
-            /* 
-                https://brilliant.org/wiki/dot-product-distance-between-point-and-a-line/
-                y = ax + b;
-                ax -1y +b = 0
-                d(x0, y0) = |ax0 - y0 + b| / sqrt(a*a + 1)
-            */
-            float x0 = i;
-            float y0 = points[i].first;
-            float distance = abs(a * x0 - y0 + b) / sqrt(a * a + 1);
-
-            //first only do unweighted TODO
-            dvect.push_back(distance);
-        }
-        std::sort(dvect.begin(), dvect.end(), [](float a, float b){return a < b;});
-
-        for(auto pc: percentiles){
-            std::vector<std::pair<float, WT>> distance_points;
-            for(size_t i = 0; i < dvect.size(); i++){
-                float d = dvect[i];
-                //float pcnt = i/dvect.size();
-                float nextpcnt = (i + 1)/dvect.size();
-                /* check max and ignore last */
-                if(d < pc.second && nextpcnt > 1){
-                    /* check percentile */
-                    auto thispcnt = 1 - pc.first;
-                    if(thispcnt > std::numeric_limits<float>::epsilon()){
-                        if(thispcnt > nextpcnt){
-                            continue;
-                        }
-                    }
-                }
-
-                distance_points.push_back(std::make_pair(d, 1));
-            }
-            float sum = std::accumulate(distance_points.begin(), distance_points.end(), 0.0, [&]
-                (double a, const std::pair<float, WT> &b){
-                    return a + b.first;
-                });
-            float avg = sum / distance_points.size();
-            float avg_sq = std::accumulate(distance_points.begin(), distance_points.end(), 0.0, [&]
-                (double a, const std::pair<float, WT> &b){
-                    return a + (b.first * b.first);
-                });
-            float stdev = std::sqrt(avg_sq / distance_points.size() - avg * avg);
-            auto max = std::max_element(distance_points.begin(), distance_points.end());
-            auto lin_regr_coeff = calculate_linear_coeff(distance_points,
-                        std::make_pair(0, distance_points.size() - 1));
-
-            sigma[pc] = std::make_tuple(sum, avg, avg_sq, stdev, max->first, lin_regr_coeff.first * 100000);
-            //sigma[pc] /= count;
-        }
-
-        return sigma;
-    }
-
-    std::pair<std::pair<float, float>, DistanceResults>
-    get_linear_regr(const std::pair<size_t, size_t> &r,
-            const std::vector<std::pair<float, WT>> &points,
-            const std::pair<float, float> &percentile = std::pair<float, float>{0.97, 0.3}){
-        auto coeff = calculate_linear_coeff(points, std::make_pair(r.first, r.second));
-
-        auto distancemap = calulcate_least_distance(points,
-            std::make_pair(r.first, r.second), coeff, std::vector{percentile});
-
-        return std::make_pair(coeff, distancemap[percentile]);
-    }
-
+        
     /* index [start, end] */
     template <bool is_debug = false>
     TrendsContainer get_raw_trends(
@@ -549,48 +416,16 @@ public:
         return ranges;
     }
 
-    std::vector<std::pair<float, WT>>
-    get_core_points(std::vector<std::pair<float, WT>> flatpoints,
-            size_t window, size_t step, size_t limit){
-        std::vector<std::pair<float, WT>> tmppoints;
-
-        while(flatpoints.size() >= limit){
-            tmppoints = flatpoints;
-            flatpoints = average_weighted_window(tmppoints, window, step);
-            //std::cout << std::fixed << std::setprecision(2) << flatpoints << std::endl;
-        }
-        return tmppoints;
-    }
-
     template<bool is_debug = false>
-    TrendsContainer detect(size_t index, size_t offset,
-            size_t window, size_t step, size_t limit){
+    TrendsContainer detect(MetaSequence &seq, size_t index, size_t offset){
         std::vector<std::pair<float, WT>> flatpoints;
-
-        for(ssize_t i = index; i >= 0 && i >= (ssize_t)(index - offset + window); i--){
-            auto tick = seq.data[i];
-            flatpoints.push_back(std::make_pair(tick.price, tick.volume));
-        }
-        //std::cout << "input:" << std::endl;
-        //std::cout << std::fixed << std::setprecision(2) << flatpoints << std::endl;
-
-        flatpoints = get_core_points(flatpoints, window, step, limit);
-        //std::cout << "polished:" << std::endl;
-        while(flatpoints.size() > limit * 2){
-            flatpoints = get_core_points(flatpoints, 2, 2, limit);
-        }
-        std::reverse(flatpoints.begin(), flatpoints.end());
-        if(is_debug){
-	        std::cout << "final:" << std::endl;
-	        std::cout << std::fixed << std::setprecision(2) << flatpoints << std::endl;
-	    }
+        //TODO seq = flatpoints
         //have X(X = window * 2 -1) points with values
         return get_trends<is_debug>(flatpoints);
     }
 
     template<bool is_debug = false>
-    TrendsContainer detect(bt::ptime at_start, bt::ptime at_end,
-            size_t window, size_t step, size_t limit){
+    TrendsContainer detect(MetaSequence &seq, bt::ptime at_start, bt::ptime at_end){
         size_t index = 0;
         bool found = false;
 
@@ -612,16 +447,16 @@ public:
             auto i = index - offset;
             auto tick = seq.data[i];
             if(!tperiod.contains(tick.time))
-                return detect<is_debug>(index, offset - 1, window, step, limit);
+                return detect<is_debug>(seq, index, offset - 1);
         }
 
-        return detect<is_debug>(index, index, window, step, limit);
+        return detect<is_debug>(seq, index, index);
     }
 
     template<bool is_debug = false>
-    TrendsContainer detect(bt::ptime at_end, bt::time_duration duration){
+    TrendsContainer detect(MetaSequence &seq, bt::ptime at_end, bt::time_duration duration){
         bt::ptime at_start = at_end - duration;
-        return detect<is_debug>(at_start, at_end);
+        return detect<is_debug>(seq, at_start, at_end);
     }
 
     

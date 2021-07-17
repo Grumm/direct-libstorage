@@ -5,7 +5,7 @@ if after that volumes raising - most likely a false a breakout
 https://imgur.com/a/GQEQwoj - double layer - no immediate bounce, but second actually reverts the trend
 https://imgur.com/a/oOUs2ZP - small trend up, but global is down
 
-2) spread between ice and moex brent in instant moment that normalises in flat trend
+2) spread between ice and moex brent in instant moment that normalizes in flat trend
 3) post-clearing rising spread + flat trend
 4) trading range(small, big, medium), with false breakouts
 5) hitting level, then bouncing back, then trying to pass level below first one and not succeeding - see https://imgur.com/a/mvZh4yu
@@ -16,6 +16,17 @@ https://imgur.com/a/oOUs2ZP - small trend up, but global is down
 10) после первой планки на больших объемах вероятность второй планки или отката
 11) детект айсбергов и игра вокруг них - пробой вверх или вниз
 12) trend is your friend
+13) покупка и продажа на больших лотах(100+) только
+14) snp500 after a great day, with good news(huge volume in a second/minute), next day falls down dramatically. on bear/flat market
+15) https://smart-lab.ru/blog/499606.php
+16) метод ММ - защита диапазона с двух концов - зеркальный уровень. сперва стоит в шорт на уровне, потом стоит лонг на уровне(откупает шорт, восстанавливает позу)
+17) https://smart-lab.ru/blog/613095.php
+18) buy after gap up, sell after gap down
+19) https://smart-lab.ru/blog/613935.php
+20) частые тесты зоны делают ее слабой
+21) https://www.youtube.com/watch?v=a-9A0ar70pI
+22) Marginal levels https://medium.com/@kankordia/what-are-marginal-levels-and-how-to-use-them-in-trading-9f4cd786ce23
+23) LRA https://fxbook.su/baza-znanii/locked-in-range-analysis.html
 
 
 README
