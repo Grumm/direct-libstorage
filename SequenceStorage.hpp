@@ -44,7 +44,7 @@ public:
 };
 
 //interface for all object storages - db, sequence etc. T - Serializable
-template<class DS, class T> //typename <template> ?
+template<class T, class DS> //typename <template> ?
 class ObjectStorage{
 public:
 	StorageRawBuffer addRawObjectStart();
