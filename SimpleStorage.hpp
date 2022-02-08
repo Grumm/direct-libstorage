@@ -69,11 +69,15 @@ protected:
 			if(newsize >= MIN_EMPTYSIZE){
 				empty.emplace(newsize, newoffset);
 			}
+			LOG_DEBUG("VirtAddressMapping::alloc_offset {%lx, %lu}->[%lu, %lu]",
+				addr, size, base_offset, size);
 			return base_offset;
 		} else {
 			//if nothing, allocate new range at the end
 			max.first = addr + size;
 			max.second += size;
+			LOG_DEBUG("VirtAddressMapping::alloc_offset {%lx, %lu}->[%lu, %lu]",
+				addr, size, max.second - size, size);
 			return max.second - size;
 		}
 	}
@@ -146,11 +150,11 @@ public:
 		return Result::Success;
 	}
 
-	size_t get_size() const {
+	size_t get_size(size_t extra = 0) const {
 		//TODO calculate data needed for serialization
-		return m.size() * (sizeof(uint64_t) + sizeof(size_t) * 2) + sizeof(size_t) +
-			unmapped.size() * (sizeof(uint64_t) + sizeof(size_t)) + sizeof(size_t) +
-			empty.size() * (sizeof(size_t) + sizeof(size_t)) + sizeof(size_t) +
+		return (m.size() + extra) * (sizeof(uint64_t) + sizeof(size_t) * 2) + sizeof(size_t) +
+			(unmapped.size() + extra) * (sizeof(uint64_t) + sizeof(size_t)) + sizeof(size_t) +
+			(empty.size() + extra) * (sizeof(size_t) + sizeof(size_t)) + sizeof(size_t) +
 			(sizeof(uint64_t) + sizeof(size_t));
 	}
 protected:
@@ -327,7 +331,7 @@ public:
 
 	virtual ~SimpleStorage(){
 		//serialize to rma
-		metadata.va_size = mapping.get_size();
+		metadata.va_size = mapping.get_size(1);
 		metadata.va_offset = mapping.alloc(metadata.va_addr, metadata.va_size);
 		StorageBuffer vmap_buf{rma.writeb(metadata.va_offset, metadata.va_size)};
 		mapping.serialize(vmap_buf);

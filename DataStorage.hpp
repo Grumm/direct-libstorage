@@ -29,6 +29,8 @@ public:
 	virtual Result commit(const StorageBufferRO &buffer) = 0;
 
 	virtual Stat stat(const StorageAddress &addr) = 0;
+
+	virtual ~DataStorage(){}
 };
 
 
