@@ -16,6 +16,7 @@ public:
 		//TODO
 	};
 
+	virtual StorageAddress get_static_section() = 0;
 	virtual StorageAddress get_random_address(size_t size) = 0;
 	virtual StorageAddress expand_address(const StorageAddress &address, size_t size) = 0;
 
@@ -32,6 +33,31 @@ public:
 
 	virtual ~DataStorage(){}
 };
+
+/*
+For DataStorage we need some way to store some static information.
+Q1: way to identify static address:
+- defined in DataStorage constant, fixed address
+- queried from DataStorage object
+
+Q2: how to allocate
+- allocated on storage creation automatically
+- allocated on demand
+
+Q3: what we store there:
+- whole section, which maps multiple: string key -> storage address
+- one storage address
+- unspecified
+
+A: Q1 - don't want to overcomplicate DataStorage interface, fixed const address
+A: Q2 - to simplify storage object creation, make it a interface requirement?
+A: Q3 - map would be nice, but 
+
+Three options:
+- fixed constant address, created automatically, one storage address
+- queried from datastorage, allocated on demand, key->address map
+- queried from datastorage, created automatically, unspecified [V]
+*/
 
 
 

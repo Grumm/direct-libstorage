@@ -1,7 +1,6 @@
 #pragma once
 
 #include <map>
-#define DEBUG 1
 #include <Utils.hpp>
 #include <RandomMemoryAccess.hpp>
 #include <DataStorage.hpp>
@@ -246,16 +245,16 @@ class SimpleStorage: public DataStorage{
 		RandomAddressRange<> ra;
 		size_t va_offset, va_size;
 		uint64_t va_addr;
+		StorageAddress static_addr;
 	};
 	FileMetadata metadata;
 
 	VirtAddressMapping mapping;
-public:
-	SimpleStorage(RMAInterface &rma): rma(rma) {
+
+	void init_simple_storage(size_t static_size){
 		StorageBufferRO metadata_buf{rma.readb(0, sizeof(FileMetadata))};
 		const FileMetadata *fm = static_cast<const FileMetadata *>(metadata_buf.data);
-		metadata = *fm;
-		if(metadata.magic != MAGIC){
+		if(fm->magic != MAGIC){
 			//new file!
 			metadata.magic = MAGIC;
 			metadata.va_addr = metadata.ra.get_random_address(VirtAddressMapping::DEFAULT_SIZE);
@@ -263,11 +262,25 @@ public:
 			//first mapping for the beginning of the file
 			auto offset = mapping.alloc(metadata_addr, sizeof(FileMetadata));
 			ASSERT_ON(offset != 0);
+			metadata.static_addr = get_random_address(static_size);
 		} else {
+			metadata = *fm;
+			ASSERT_ON(metadata.static_addr.size < static_size);
 			StorageBufferRO vmap_buf{rma.readb(metadata.va_offset, metadata.va_size)};
 			mapping.deserialize(vmap_buf);
 			mapping.del(metadata.va_addr, metadata.va_size);
 		}
+	}
+public:
+	SimpleStorage(RMAInterface &rma, size_t static_size): rma(rma) {
+		init_simple_storage(static_size);
+	}
+	SimpleStorage(RMAInterface &rma): rma(rma) {
+		init_simple_storage(sizeof(StorageAddress));
+	}
+
+	StorageAddress get_static_section() override {
+		return metadata.static_addr;
 	}
 
 	// find random address from definately unused blocks

@@ -63,6 +63,7 @@ struct StorageBufferRO{
 	const void *data;
 	const size_t size; //how much data we have
 	const size_t alloc; //max size of the buffer
+	//XXX maybe actual data offset?
 
 	StorageBufferRO(StorageBuffer &&buf):
 		data(buf.data), size(buf.size), alloc(buf.alloc) {}
@@ -71,6 +72,8 @@ struct StorageBufferRO{
 	StorageBufferRO(void *data, size_t size, size_t alloc): data(data), size(size), alloc(alloc) {}
 };
 
+
+//TODO move to StorageUtils or DataStorage.hpp
 template<size_t BITS_OFFSET = 36>
 class RandomAddressRange{
 	uint64_t high_bits;
