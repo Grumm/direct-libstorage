@@ -33,14 +33,9 @@ concept CSerializableImpl = requires(const T &t, const StorageBuffer &buffer,
     { T::deserializeImpl(ro_buffer) } -> std::same_as<T>;
 };
 template<typename T>
-class ISerialize;
-template<typename T>
-concept CSerializable = CBuiltinSerializable<T>
-                        || (CSerializableImpl<T> && std::derived_from<T, ISerialize<T>>);
+concept CSerializable = CBuiltinSerializable<T> || CSerializableImpl<T>;
 
-
-template<typename T>
-class ISerialize{
+class Serialize{
 public:
 #if 0
     ObjectAddress serialize(ObjectStorage<T> &storage) const{
@@ -49,9 +44,9 @@ public:
         return storage.addRawObjectFinish(buffer);
     }
 #endif
-    void serialize(DataStorage &storage, StorageAddress &address){
-        T *obj = static_cast<T*>(this);
-        size_t size = obj->getSizeImpl();
+    template<CSerializableImpl T>
+    static void serialize(const T &obj, DataStorage &storage, StorageAddress &address){
+        size_t size = getSize(obj);
 
         if(address.size < size){
             //invalidate old_address, create new
@@ -61,12 +56,13 @@ public:
             address = storage.get_random_address(size);
         }
         StorageBuffer buffer = storage.writeb(address);
-        obj->serializeImpl(buffer);
+        obj.serializeImpl(buffer);
         storage.commit(buffer);
     }
-    StorageAddress serialize(DataStorage &storage) {
+    template<CSerializableImpl T>
+    static StorageAddress serialize(const T &obj, DataStorage &storage) {
         StorageAddress address;
-        serialize(storage, address);
+        serialize(obj, storage, address);
         return address;
     }
 #if 0
@@ -77,18 +73,19 @@ public:
         return obj;
     }
 #endif
+    template<CSerializableImpl T>
     static T deserialize(DataStorage &storage, const StorageAddress &addr){
         StorageBufferRO buffer = storage.readb(addr);
         T obj = T::deserializeImpl(buffer);
         storage.commit(buffer);
         return obj;
     }
-    size_t getSize() const{
-        T *obj = dynamic_cast<T*>(this);
-        size_t size = obj->getSizeImpl();
+    template<CSerializableImpl T>
+    static size_t getSize(const T &obj){
+        size_t size = obj.getSizeImpl();
         return size;
     }
-    //virtual ~ISerialize(){}
+    //virtual ~Serialize(){}
 #if 0
     Result serializeImpl(const StorageBuffer &buffer) const { throw std::bad_function_call("Not implemented"); }
     static T deserializeImpl(const StorageBufferRO &buffer) { throw std::bad_function_call("Not implemented"); }
@@ -117,7 +114,7 @@ public:
         *t = obj;
         return Result::Success;
     }
-    static T deserializeImpl(const StorageBufferRO &buffer) {
+    static BuiltinSerializeImpl<T> deserializeImpl(const StorageBufferRO &buffer) {
         if(buffer.size < sizeof(T))
             throw std::out_of_range("Buffer size too small");
         const T *t = static_cast<const T *>(buffer.data);
@@ -141,8 +138,10 @@ public:
         std::strncpy(s, obj.c_str(), buffer.size);
         return Result::Success;
     }
-    static std::string deserializeImpl(const StorageBufferRO &buffer) {
-        return std::string{static_cast<const char *>(buffer.data), buffer.size};
+    static BuiltinSerializeImpl<std::string> deserializeImpl(const StorageBufferRO &buffer) {
+        auto str = std::string{static_cast<const char *>(buffer.data), buffer.size - 1};
+        // removeing trailing \0
+        return BuiltinSerializeImpl{std::string{str.c_str()}};
     }
     size_t getSizeImpl() const {
         return obj.length() + 1;
@@ -153,46 +152,42 @@ public:
 /****************************************************/
 
 template<CStorageAddress A, CSerializable T, CStorage<T> S>
-A serialize(S &storage, T &obj){
-    auto obj_ser = static_cast<ISerialize<T> &>(obj);
-    return obj_ser.serialize(storage);
+A serialize(S &storage, const T &obj){
+    return Serialize::serialize(obj, storage);
 }
 
 template<CStorageAddress A, CSerializable T, CStorage<T> S>
 void serialize(S &storage, const T &obj, A &address){
-    auto obj_ser = static_cast<ISerialize<const T>>(obj);
-    obj_ser.serialize(storage, address);
+    Serialize::serialize(obj, storage, address);
 }
 
 template<CSerializable T, CStorageAddress A, CStorage<T> S>
 T deserialize(S &storage, const A &address){
-    return ISerialize<T>::deserialize(storage, address);
+    return Serialize::deserialize<T>(storage, address);
 }
 
 template<CSerializable T, CStorageAddress A, CStorage<T> S>
 std::unique_ptr<T> deserialize_ptr(S &storage, const A &address){
-    return std::make_unique<T>(new T(deserialize<T, A, S>(storage, address)));
+    return std::make_unique<T>(deserialize<T, A, S>(storage, address));
 }
 //for builtins
 
-template<CBuiltinSerializable T, CStorageAddress A, CStorage<T> S>
+template<CStorageAddress A, CBuiltinSerializable T, CStorage<T> S>
 A serialize(S &storage, const T &obj){
-    auto &obj_ser = static_cast<ISerialize<BuiltinSerializeImpl<T>> &>(obj);
-    return obj_ser.serialize(storage);
+    return Serialize::serialize(BuiltinSerializeImpl<T>{obj}, storage);
 }
 
-template<CBuiltinSerializable T, CStorageAddress A, CStorage<T> S>
+template<CStorageAddress A, CBuiltinSerializable T, CStorage<T> S>
 void serialize(S &storage, const T &obj, A &address){
-    auto &obj_ser = static_cast<ISerialize<BuiltinSerializeImpl<T>> &>(obj);
-    obj_ser.serialize(storage, address);
+    Serialize::serialize(BuiltinSerializeImpl<T>{obj}, storage, address);
 }
 
 template<CBuiltinSerializable T, CStorageAddress A, CStorage<T> S>
 T deserialize(S &storage, const A &address){
-    return ISerialize<BuiltinSerializeImpl<T>>::deserialize(storage, address).getObj();
+    return Serialize::deserialize<BuiltinSerializeImpl<T>>(storage, address).getObj();
 }
 
 template<CBuiltinSerializable T, CStorageAddress A, CStorage<T> S>
 std::unique_ptr<T> deserialize_ptr(S &storage, const A &address){
-    return std::make_unique<T>(new T(deserialize<T, A, S>(storage, address)));
+    return std::make_unique<T>(deserialize<T, A, S>(storage, address));
 }

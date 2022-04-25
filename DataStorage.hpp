@@ -1,14 +1,7 @@
 #pragma once
 
 #include <Utils.hpp>
-
-//using StorageRawBuffer = StorageRawBuffer;
-
-//generic virtual file system
-struct StorageAddress{
-	uint64_t addr{-1ULL};
-	size_t size{0};
-};
+#include <StorageUtils.hpp>
 
 class DataStorage{
 public:

@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <Utils.hpp>
+#include <StorageUtils.hpp>
 
 #ifndef MADV_HUGEPAGE
 #warning "Hugepages not supported. Using compatible mode"

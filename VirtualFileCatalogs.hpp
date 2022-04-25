@@ -59,6 +59,7 @@ this is a part of objectstorage class
 
 */
 
+#include <DataStorage.hpp>
 #include <Serialize.hpp>
 
 template <CSerializable ...Keys>
@@ -66,8 +67,7 @@ using MultiLevelKey = std::tuple<Keys...>;
 
 template <CSerializable Value, CSerializable ...Keys>
     requires DefaultConstructible<Value>
-class SimpleMultiLevelKeyMap:
-        public ISerialize<SimpleMultiLevelKeyMap<Value, Keys...>> {
+class SimpleMultiLevelKeyMap {
     std::map<MultiLevelKey<Keys...>, Value> m;
 
 public:
@@ -92,8 +92,10 @@ public:
         }
         return std::make_pair(true, it->second);
     }
-    //TODO delete()
-    //ISerialize
+    void delete(const Keys... &keys){
+        m.erase(std::make_tuple(keys...));
+    }
+    //CSerializableImpl
     Result serializeImpl(const StorageBuffer &buffer) const { throw std::bad_function_call("Not implemented"); }
     template <CSerializable Value, CSerializable ...Keys>
     static SimpleMultiLevelKeyMap<Value, Keys...>
@@ -103,7 +105,7 @@ public:
 
 template <CSerializable Value, CSerializable ...Keys>
     requires DefaultConstructible<Value>
-class VirtualFileCatalog: public ISerialize<Keys...>{
+class VirtualFileCatalog{
     DataStorage &storage;
     StorageAddress static_header_address;
     StorageBuffer static_header_buffer;
@@ -135,9 +137,35 @@ public:
         storage.commit(static_header_address);
     }
 
-    //get
-    //add
-    //delete
+    Result add(const Keys... &keys, const Value &value){
+        return mlkm.add(keys..., value);
+    }
+    std::pair<bool, Value> get(const Keys... &keys){
+        return mlkm.get(keys...);
+    }
+    std::pair<bool, Value &> getRef(const Keys... &keys){
+        return mlkm.getRef(keys...);
+    }
+    void delete(const Keys... &keys){
+        mlkm.delete(keys...);
+    }
+
+    Result serializeImpl(const StorageBuffer &buffer) const {
+        return mlkm.serializeImpl(buffer);
+    }
+    template <CSerializable Value, CSerializable ...Keys>
+    static SimpleMultiLevelKeyMap<Value, Keys...>
+        deserializeImpl(const StorageBufferRO &buffer) {
+            throw std::bad_function_call("Not implemented"); //unneeded, bad call
+            //return VirtualFileCatalog{DataStorage?}; //TODO
+    }
+    size_t getSizeImpl() const {
+        return mlkm.getSizeImpl();
+    }
+    /*
+    static VirtualFileCatalog Create(DataStorage &storage){ //should it be a singleton?
+        VirtualFileCatalog vfc{storage};
+    }*/
 };
 
 /*
