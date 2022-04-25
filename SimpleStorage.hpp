@@ -276,7 +276,7 @@ public:
 		init_simple_storage(static_size);
 	}
 	SimpleStorage(RMAInterface &rma): rma(rma) {
-		init_simple_storage(sizeof(StorageAddress));
+		init_simple_storage(sizeof(StaticHeader));
 	}
 
 	StorageAddress get_static_section() override {

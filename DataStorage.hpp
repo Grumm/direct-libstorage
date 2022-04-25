@@ -34,6 +34,11 @@ public:
 	virtual ~DataStorage(){}
 };
 
+struct StaticHeader{
+	uint64_t magic;
+	StorageAddress address;
+};
+
 /*
 For DataStorage we need some way to store some static information.
 Q1: way to identify static address:
