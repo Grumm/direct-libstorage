@@ -6,8 +6,8 @@
 
 //generic virtual file system
 struct StorageAddress{
-	uint64_t addr;
-	size_t size;
+	uint64_t addr{-1ULL};
+	size_t size{0};
 };
 
 class DataStorage{

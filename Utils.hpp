@@ -54,9 +54,9 @@ T *PTR_OFFSET(T *base, size_t offset){
 
 //TODO move to StorageUtils.hpp
 struct StorageBuffer{
-	void *data;
-	size_t size; //how much data we have
-	size_t alloc; //max size of the buffer
+	void *data{nullptr};
+	size_t size{0}; //how much data we have
+	size_t alloc{0}; //max size of the buffer
 };
 
 struct StorageBufferRO{

@@ -38,49 +38,8 @@ Folder or File name = key
 
 */
 
-class AbstractVirtualFileEntity{
-
-};
-
-template <typename ...Keys>
-using VFCPath = std::tuple<Keys...>;
-
-template <typename ...Keys>
-class VirtualFileCatalog{
-    StorageAddress base;
-    DataStorage &storage;
-    std::map<VFCPath<Keys...>, StorageAddress> m;
-    void deserialize(){
-        m.clear();
-
-    }
-    void serialize(){
-        //put m into 
-    }
-public:
-    VirtualFileCatalog(DataStorage &storage): storage(storage){
-        //init base
-        deserialize();
-    }
-
-    Result add(const Keys... &keys, const StorageAddress &addr){
-        m.emplace(std::make_tuple(keys...), addr);
-        return Result::Success;
-    }
-    StorageAddress get(const Keys... &keys){
-        auto it = m.find(std::make_tuple(keys...));
-        ASSERT_ON(it == m.end());
-        return it->second;
-    }
-    ~VirtualFileCatalog(){
-        serialize();
-    }
-};
-
 //TODO StaticObject which maps string to StorageAddress and VFC path
 
-//usage
-VirtualFileCatalog
 
 /*
 Purpose: assign keys to storage addresses and able to look up between them
@@ -99,51 +58,6 @@ for this we need to keep a string description of the objects and compare to this
 this is a part of objectstorage class
 
 */
-
-template <typename Value, typename Key, typename ...Keys>
-class MultiLevelKeyMap {
-//single-layer
-    std::map<std::tuple<Key, Keys...>, Value> m;
-//recursive:
-//simple
-    std::map<Key, MultiLevelKeyMap<Value, Keys...>> m;
-//optimal?
-    std::vector<MultiLevelKeyMap<Value, Keys...>> values;
-    std::map<Key, size_t> m; //maps to values index 
-
-public:
-    MultiLevelKeyMap() {}
-
-    std::set<Key> list(){}
-
-    Result add(const Key &key, const Keys... &keys, Value &value){
-        auto it = m.find(key);
-        if(it == m.end()){
-            it = m.emplace(key, MultiLevelKeyMap<Value, Keys...>{});
-        }
-        return it->second.add(keys..., value);
-    }
-    std::pair<bool, Value> get(const Key &key, const Keys... &keys){
-        auto it = m.find(key);
-        if(it == m.end()){
-            return std::make_pair(false, Value{});
-        }
-        return it->second.get(keys...);
-    }
-};
-
-
-template <typename Value, typename Key>
-class MultiLevelKeyMap {
-//simple
-    std::map<Key, Value> m;
-//optimal?
-    std::vector<Value> values;
-    std::map<Key, size_t> m;
-}
-
-//or just simple one
-
 
 #include <Serialize.hpp>
 
