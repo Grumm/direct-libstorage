@@ -168,9 +168,9 @@ protected:
 public:
 	//only sequential support
 	Result serialize(const StorageBuffer &buffer) const{
-		ASSERT_ON(get_size() > buffer.size);
+		ASSERT_ON(get_size() > buffer.allocated());
 		size_t offset = 0;
-		auto *sm1 = static_cast<SerializableMap<M_Type> *>(buffer.data);
+		auto *sm1 = buffer.get<SerializableMap<M_Type>>();
 		sm1->size = m.size();
 		size_t i = 0;
 		for(auto it: m){

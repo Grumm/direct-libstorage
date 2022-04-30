@@ -45,9 +45,9 @@ enum class Result{
 
 template <typename T>
 const T *PTR_OFFSET(const T *base, size_t offset){
-	return static_cast<const T *>(static_cast<const char *>(base) + offset);
+	return reinterpret_cast<const T *>(reinterpret_cast<const char *>(base) + offset);
 }
 template <typename T>
 T *PTR_OFFSET(T *base, size_t offset){
-	return static_cast<T *>(static_cast<char *>(base) + offset);
+	return reinterpret_cast<T *>(reinterpret_cast<char *>(base) + offset);
 }

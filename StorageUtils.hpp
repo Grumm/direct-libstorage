@@ -1,6 +1,7 @@
 #pragma once 
 
 #include <cstdint>
+#include <Utils.hpp>
 
 //generic virtual file system
 struct StorageAddress{
@@ -8,24 +9,146 @@ struct StorageAddress{
 	size_t size{0};
 };
 
+template<typename T>
+class StorageBufferRO;
 
-struct StorageBuffer{
-	void *data{nullptr};
-	size_t size{0}; //how much data we have
-	size_t alloc{0}; //max size of the buffer
+template<typename T>
+class StorageBuffer;
+
+template<typename T = void>
+class StorageBuffer{
+	T *data{nullptr};
+	size_t data_size{0}; //how much data we have
+	size_t data_allocated{0}; //max size of the buffer
+public:
+	StorageBuffer() {}
+	StorageBuffer(T *data, size_t alloc_): data(data), data_allocated(alloc_) {}
+	StorageBuffer(T *data, size_t size_, size_t alloc_):
+		data(data), data_size(size_), data_allocated(alloc_) {}
+	StorageBuffer(StorageBuffer &&buf) = default;
+
+	template<typename U = T>
+	StorageBuffer(const StorageBuffer<U> &buf):
+		data(buf.template get<T>()), data_size(buf.size()), data_allocated(buf.allocated()) {}
+
+	constexpr StorageBuffer &operator=(const StorageBuffer &buf){
+		data = buf.get();
+		data_size = buf.size();
+		data_allocated = buf.allocated();
+
+		return *this;
+	}
+	template<typename U = T>
+	StorageBuffer &operator=(const StorageBuffer<U> &buf){
+		data = buf.template get<T>();
+		data_size = buf.size();
+		data_allocated = buf.allocated();
+
+		return *this;
+	}
+
+	template<typename U = T>
+	U *get(size_t offset_ = 0) const{
+		return reinterpret_cast<U *>(PTR_OFFSET(data, offset_));
+	}
+
+	size_t size() const{
+		return data_size;
+	}
+	size_t allocated() const{
+		return data_allocated;
+	}
+
+	void reset(){
+		data_size = 0;
+	}
+
+	//put more data at the end, return new sub-buffer
+	StorageBuffer advance(size_t _size) {
+		ASSERT_ON(size() + _size > allocated());
+
+		StorageBuffer buf{offset(size(), _size)};
+
+		PTR_OFFSET(data, _size);
+		data_size += _size;
+
+		return buf;
+	}
+
+	//returns new buffer of _size by _offset
+	StorageBuffer offset(size_t _offset, size_t _size) const{
+		ASSERT_ON(_offset + _size > allocated());
+		return StorageBuffer{PTR_OFFSET(data, _offset), _size, _size};
+	}
+
+	//returns new buffer of _size by _offset, advances the _offset after that
+	//used for iteration over buffer
+	StorageBuffer offset_advance(size_t &_offset, size_t _size) const{
+		ASSERT_ON(_offset + _size > allocated());
+		size_t __offset = _offset;
+		_offset += _size;
+
+		return offset(__offset, _size);
+	}
 };
 
-struct StorageBufferRO{
-	const void *data;
-	const size_t size; //how much data we have
-	const size_t alloc; //max size of the buffer
-	//XXX maybe actual data offset?
+template<typename T = void>
+class StorageBufferRO{
+	const T *data{nullptr};
+	size_t data_size{0}; //how much data we have, can only decrease
+public:
+	StorageBufferRO(const T *data, size_t size_): data(data), data_size(size_) {}
+	template<typename U = T>
+	StorageBufferRO(StorageBuffer<U> &buf):
+		data(buf.template get<T>()), data_size(buf.allocated()) {}
+	template<typename U = T>
+	StorageBufferRO(const StorageBufferRO<U> &other):
+		data(other.template get<T>()), data_size(other.size()) {}
+	StorageBufferRO(StorageBufferRO &&buf) = default;
+	StorageBufferRO(const StorageBufferRO &buf) = default;
 
-	StorageBufferRO(StorageBuffer &&buf):
-		data(buf.data), size(buf.size), alloc(buf.alloc) {}
-	StorageBufferRO(const StorageBufferRO &other):
-		data(other.data), size(other.size), alloc(other.alloc) {}
-	StorageBufferRO(void *data, size_t size, size_t alloc): data(data), size(size), alloc(alloc) {}
+	constexpr StorageBufferRO &operator=(const StorageBufferRO &buf){
+		data = buf.get();
+		data_size = buf.size();
+
+		return *this;
+	}
+	template<typename U = T>
+	StorageBufferRO &operator=(const StorageBufferRO<U> &buf){
+		data = buf.template get<T>();
+		data_size = buf.size();
+
+		return *this;
+	}
+
+	template<typename U = T>
+	const U *get(size_t offset_ = 0) const{
+		return reinterpret_cast<const U *>(PTR_OFFSET(data, offset_));
+	}
+
+	void shrink(size_t delta){
+		ASSERT_ON(data_size < delta);
+		data_size -= delta;
+	}
+	size_t size() const{
+		return data_size;
+	}
+
+	//returns new buffer of _size by _offset
+	StorageBufferRO offset(size_t _offset, size_t _size) const{
+		ASSERT_ON(_offset + _size > size());
+		return StorageBufferRO{PTR_OFFSET(data, _offset), _size};
+	}
+
+	//returns new buffer of _size by _offset, advances the _offset after that
+	//used for iteration over buffer
+	StorageBufferRO offset_advance(size_t &_offset, size_t _size) const{
+		ASSERT_ON(_offset + _size > size());
+		size_t __offset = _offset;
+		_offset += _size;
+
+		return offset(__offset, _size);
+	}
 };
 
 

@@ -58,7 +58,7 @@ TEST_P(RMATestFixture, ReadWriteRegular){
 
 	StorageBufferRO readb = rma->readb(0, 200);
 	for(size_t i = 0; i < 200; i++){
-		EXPECT_EQ(((const unsigned char *)readb.data)[i], i);
+		EXPECT_EQ(readb.get<unsigned char>()[i], i);
 	}
 }
 
@@ -66,43 +66,43 @@ TEST_P(RMATestFixture, ReadWriteRegular){
 TEST_P(RMATestFixture, ReadWriteBuffer){
 	StorageBuffer buf1 = rma->writeb(0, 100);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)buf1.data)[i] = i;
+		buf1.get<unsigned char>()[i] = i;
 	}
 	StorageBuffer buf2 = rma->writeb(100, 100);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)buf2.data)[i] = i + 100;
+		buf2.get<unsigned char>()[i] = i + 100;
 	}
 	StorageBufferRO readb = rma->readb(0, 200);
 	for(size_t i = 0; i < 200; i++){
-		EXPECT_EQ(((const unsigned char *)readb.data)[i], i);
+		EXPECT_EQ(readb.get<unsigned char>()[i], i);
 	}
 }
 
 TEST_P(RMATestFixture, ReadWriteNonSequential){
 	StorageBuffer buf1 = rma->writeb(0, 100);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)buf1.data)[i] = i;
+		buf1.get<unsigned char>()[i] = i;
 	}
 	StorageBuffer buf2 = rma->writeb(500, 100);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)buf2.data)[i] = 100 + i;
+		buf2.get<unsigned char>()[i] = 100 + i;
 	}
 	StorageBuffer buf3 = rma->writeb(9000, 55);
 	for(size_t i = 0; i < 55; i++){
-		((unsigned char *)buf3.data)[i] = 200 + i;
+		buf3.get<unsigned char>()[i] = 200 + i;
 	}
 
 	StorageBufferRO readb1 = rma->readb(0, 100);
 	for(size_t i = 0; i < 100; i++){
-		EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+		EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 	}
 	StorageBufferRO readb2 = rma->readb(500, 100);
 	for(size_t i = 0; i < 100; i++){
-		EXPECT_EQ(((const unsigned char *)readb2.data)[i], 100 + i);
+		EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 	}
 	StorageBufferRO readb3 = rma->readb(9000, 55);
 	for(size_t i = 0; i < 55; i++){
-		EXPECT_EQ(((const unsigned char *)readb3.data)[i], 200 + i);
+		EXPECT_EQ(readb3.get<unsigned char>()[i], 200 + i);
 	}
 }
 
@@ -117,28 +117,28 @@ TEST(FileRMAReadWrite, ReadWriteReopen){
 
 		StorageBuffer buf1 = rma->writeb(0, 100);
 		for(size_t i = 0; i < 100; i++){
-			((unsigned char *)buf1.data)[i] = i;
+			buf1.get<unsigned char>()[i] = i;
 		}
 		StorageBuffer buf2 = rma->writeb(500, 100);
 		for(size_t i = 0; i < 100; i++){
-			((unsigned char *)buf2.data)[i] = 100 + i;
+			buf2.get<unsigned char>()[i] = 100 + i;
 		}
 		StorageBuffer buf3 = rma->writeb(9000, 55);
 		for(size_t i = 0; i < 55; i++){
-			((unsigned char *)buf3.data)[i] = 200 + i;
+			buf3.get<unsigned char>()[i] = 200 + i;
 		}
 
 		StorageBufferRO readb1 = rma->readb(0, 100);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		StorageBufferRO readb2 = rma->readb(500, 100);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb2.data)[i], 100 + i);
+			EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 		}
 		StorageBufferRO readb3 = rma->readb(9000, 55);
 		for(size_t i = 0; i < 55; i++){
-			EXPECT_EQ(((const unsigned char *)readb3.data)[i], 200 + i);
+			EXPECT_EQ(readb3.get<unsigned char>()[i], 200 + i);
 		}
 	}
 	{
@@ -146,22 +146,17 @@ TEST(FileRMAReadWrite, ReadWriteReopen){
 
 		StorageBufferRO readb1 = rma->readb(0, 100);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		StorageBufferRO readb2 = rma->readb(500, 100);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb2.data)[i], 100 + i);
+			EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 		}
 		StorageBufferRO readb3 = rma->readb(9000, 55);
 		for(size_t i = 0; i < 55; i++){
-			EXPECT_EQ(((const unsigned char *)readb3.data)[i], 200 + i);
+			EXPECT_EQ(readb3.get<unsigned char>()[i], 200 + i);
 		}
 	}
 }
 
-}
-
-int main(int argc, char **argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
 }

@@ -8,19 +8,25 @@ public:
 	struct Stat{
 		//TODO
 	};
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
+		StorageBuffer<> &sb = reinterpret_cast<StorageBuffer<>>(buffer);
+		return read(addr, sb);
+	}
 
 	virtual StorageAddress get_static_section() = 0;
 	virtual StorageAddress get_random_address(size_t size) = 0;
 	virtual StorageAddress expand_address(const StorageAddress &address, size_t size) = 0;
 
-	virtual Result write(const StorageAddress &addr, const StorageBuffer &buffer) = 0;
+	virtual Result write(const StorageAddress &addr, const StorageBuffer<> &buffer) = 0;
 	virtual Result erase(const StorageAddress &addr) = 0;
-	virtual Result read(const StorageAddress &addr, StorageBuffer &buffer) = 0;
+	virtual Result read(const StorageAddress &addr, StorageBuffer<> &buffer) = 0;
 
-	virtual StorageBuffer writeb(const StorageAddress &addr) = 0;
-	virtual StorageBufferRO readb(const StorageAddress &addr) = 0;
-	virtual Result commit(const StorageBuffer &buffer) = 0; //TODO hint where data has been changed?
-	virtual Result commit(const StorageBufferRO &buffer) = 0;
+	virtual StorageBuffer<> writeb(const StorageAddress &addr) = 0;
+	virtual StorageBufferRO<> readb(const StorageAddress &addr) = 0;
+	virtual Result commit(const StorageBuffer<> &buffer) = 0; //TODO hint where data has been changed?
+	virtual Result commit(const StorageBufferRO<> &buffer) = 0;
 
 	virtual Stat stat(const StorageAddress &addr) = 0;
 

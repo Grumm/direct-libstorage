@@ -18,16 +18,22 @@
 #define MAP_AUTOGROW 0x8000
 #endif
 
-
 class RMAInterface{
 public:
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	Result read(size_t offset, size_t size, StorageBuffer<T> &buffer){
+		StorageBuffer<> *sb = reinterpret_cast<StorageBuffer<> *>(&buffer);
+		return read(offset, size, *sb);
+	}
+
 	virtual Result open() = 0;
 	virtual Result close() = 0;
-	virtual Result write(size_t offset, const StorageBuffer &buffer) = 0;
-	virtual Result read(size_t offset, size_t size, StorageBuffer &buffer) = 0; //read to buffer
+	virtual Result write(size_t offset, const StorageBuffer<> &buffer) = 0;
+	virtual Result read(size_t offset, size_t size, StorageBuffer<> &buffer) = 0; //read to buffer
 
-	virtual StorageBuffer writeb(size_t offset, size_t size) = 0; //return buffer for read-write
-	virtual StorageBufferRO readb(size_t offset, size_t size) = 0; //return read-only buffer
+	virtual StorageBuffer<> writeb(size_t offset, size_t size) = 0; //return buffer for read-write
+	virtual StorageBufferRO<> readb(size_t offset, size_t size) = 0; //return read-only buffer
 };
 
 template<size_t MAX_FILESIZE_OFFSET = 32> //4GiB
@@ -93,27 +99,28 @@ public:
 		}
 		return Result::Success;
 	}
-	virtual Result write(size_t offset, const StorageBuffer &buffer) override{
+	virtual Result write(size_t offset, const StorageBuffer<> &buffer) override{
 		ASSERT_ON(!is_open);
-		LOG_INFO("RMA:write [%lu,%lu]", offset, buffer.size);
-		memcpy(PTR_OFFSET(membase, offset), buffer.data, buffer.size);
+		LOG_INFO("RMA:write [%lu,%lu]", offset, buffer.size());
+		memcpy(PTR_OFFSET(membase, offset), buffer.get(), buffer.size());
 		return Result::Success;
 	}
-	virtual Result read(size_t offset, size_t size, StorageBuffer &buffer) override{
+	virtual Result read(size_t offset, size_t size, StorageBuffer<> &buffer) override{
 		ASSERT_ON(!is_open);
-		ASSERT_ON(size > buffer.alloc);
+		ASSERT_ON(size > buffer.allocated());
 		LOG_INFO("RMA:read [%lu,%lu]", offset, size);
-		memcpy(buffer.data, PTR_OFFSET(membase, offset), size);
-		buffer.size = size;
+		memcpy(buffer.get(), PTR_OFFSET(membase, offset), size);
+		buffer.reset();
+		buffer.advance(size);
 		return Result::Success;
 	}
-	virtual StorageBuffer writeb(size_t offset, size_t size) override {
+	virtual StorageBuffer<> writeb(size_t offset, size_t size) override {
 		ASSERT_ON(!is_open);
 		return StorageBuffer{PTR_OFFSET(membase, offset), size, size};
 	}
-	virtual StorageBufferRO readb(size_t offset, size_t size) override {
+	virtual StorageBufferRO<> readb(size_t offset, size_t size) override {
 		ASSERT_ON(!is_open);
-		return StorageBufferRO{PTR_OFFSET(membase_readonly, offset), size, size};
+		return StorageBufferRO{PTR_OFFSET(membase_readonly, offset), size};
 	}
 	virtual ~FileRMA(){
 		if (is_open){
@@ -154,25 +161,26 @@ public:
 		}
 		return Result::Success;
 	}
-	virtual Result write(size_t offset, const StorageBuffer &buffer) override{
+	virtual Result write(size_t offset, const StorageBuffer<> &buffer) override{
 		ASSERT_ON(!is_open);
-		memcpy(PTR_OFFSET(membase, offset), buffer.data, buffer.size);
+		memcpy(PTR_OFFSET(membase, offset), buffer.get(), buffer.size());
 		return Result::Success;
 	}
-	virtual Result read(size_t offset, size_t size, StorageBuffer &buffer) override{
+	virtual Result read(size_t offset, size_t size, StorageBuffer<> &buffer) override{
 		ASSERT_ON(!is_open);
-		ASSERT_ON(size > buffer.alloc);
-		memcpy(buffer.data, PTR_OFFSET(membase, offset), size);
-		buffer.size = size;
+		ASSERT_ON(size > buffer.allocated());
+		memcpy(buffer.get(), PTR_OFFSET(membase, offset), size);
+		buffer.reset();
+		buffer.advance(size);
 		return Result::Success;
 	}
-	virtual StorageBuffer writeb(size_t offset, size_t size) override {
+	virtual StorageBuffer<> writeb(size_t offset, size_t size) override {
 		ASSERT_ON(!is_open);
 		return StorageBuffer{PTR_OFFSET(membase, offset), size, size};
 	}
-	virtual StorageBufferRO readb(size_t offset, size_t size) override {
+	virtual StorageBufferRO<> readb(size_t offset, size_t size) override {
 		ASSERT_ON(!is_open);
-		return StorageBufferRO{PTR_OFFSET(membase, offset), size, size};
+		return StorageBufferRO{PTR_OFFSET(membase, offset), size};
 	}
 	virtual ~MemoryRMA(){
 		if (is_open){
@@ -223,15 +231,15 @@ public:
 			munmap(membase, MAX_FILESIZE);
 		}
 	}
-	virtual Result write(size_t offset, const StorageBuffer &buffer) override{
+	virtual Result write(size_t offset, const StorageBuffer<> &buffer) override{
 		ASSERT_ON(!is_open);
-		memcpy(membase + offset, buffer.data, buffer.size);
+		memcpy(membase + offset, buffer.get(), buffer.size);
 		return Result::Success;
 	}
-	virtual Result read(size_t offset, size_t size, StorageBuffer &buffer) override{
+	virtual Result read(size_t offset, size_t size, StorageBuffer<> &buffer) override{
 		ASSERT_ON(!is_open);
-		ASSERT_ON(size > buffer.alloc);
-		memcpy(buffer.data, membase + offset, size);
+		ASSERT_ON(size > buffer.allocated());
+		memcpy(buffer.get(), membase + offset, size);
 		buffer.size = size;
 		return Result::Success;
 	}

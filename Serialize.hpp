@@ -150,6 +150,31 @@ public:
 };
 
 /****************************************************/
+namespace serialize{
+
+template<CSerializable T>
+size_t size(const T &t){
+    return t.getSizeImpl();
+}
+
+template<CBuiltinSerializable T>
+size_t size(const T &t){
+    return BuiltinSerializeImpl<T>{t}.getSizeImpl();
+}
+
+template<CSerializable T>
+size_t s(const T &t){
+    return t.serializeImpl(buffer);
+}
+
+template<CBuiltinSerializable T>
+size_t s(const T &t, StorageBuffer &buffer){
+    return BuiltinSerializeImpl<T>{t}.serializeImpl(buffer);
+}
+
+}
+
+/****************************************************/
 
 template<CStorageAddress A, CSerializable T, CStorage<T> S>
 A serialize(S &storage, const T &obj){
