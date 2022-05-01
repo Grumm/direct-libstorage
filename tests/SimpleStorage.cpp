@@ -35,7 +35,7 @@ TEST(SimpleStorage, ReadWriteSimple){
 
 	StorageBufferRO readb = storage->readb(address);
 	for(size_t i = 0; i < 100; i++){
-		EXPECT_EQ(((const unsigned char *)readb.data)[i], i);
+		EXPECT_EQ(readb.get<unsigned char>()[i], i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb));
 }
@@ -51,13 +51,13 @@ TEST(SimpleStorage, ReadWriteSimpleBuffer){
 
 	StorageBuffer writeb = storage->writeb(address);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)writeb.data)[i] = i;
+		writeb.get<unsigned char>()[i] = i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb));
 
 	StorageBufferRO readb = storage->readb(address);
 	for(size_t i = 0; i < 100; i++){
-		EXPECT_EQ(((const unsigned char *)readb.data)[i], i);
+		EXPECT_EQ(readb.get<unsigned char>()[i], i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb));
 }
@@ -73,7 +73,7 @@ TEST(SimpleStorage, ReadIncorrectAddress){
 
 	StorageBuffer writeb = storage->writeb(address);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)writeb.data)[i] = i;
+		writeb.get<unsigned char>()[i] = i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb));
 
@@ -98,33 +98,33 @@ TEST(SimpleStorage, ReadWriteMultipleBuffers){
 
 	StorageBuffer writeb1 = storage->writeb(address1);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)writeb1.data)[i] = i;
+		writeb1.get<unsigned char>()[i] = i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb1));
 	StorageBuffer writeb2 = storage->writeb(address2);
 	for(size_t i = 0; i < 50; i++){
-		((unsigned char *)writeb2.data)[i] = 100 + i;
+		writeb2.get<unsigned char>()[i] = 100 + i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb2));
 	StorageBuffer writeb3 = storage->writeb(address3);
 	for(size_t i = 0; i < 50; i++){
-		((unsigned char *)writeb3.data)[i] = 150 + i;
+		writeb3.get<unsigned char>()[i] = 150 + i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb3));
 
 	StorageBufferRO readb1 = storage->readb(address1);
 	for(size_t i = 0; i < 100; i++){
-		EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+		EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb1));
 	StorageBufferRO readb2 = storage->readb(address2);
 	for(size_t i = 0; i < 50; i++){
-		EXPECT_EQ(((const unsigned char *)readb2.data)[i], 100 + i);
+		EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb2));
 	StorageBufferRO readb3 = storage->readb(address3);
 	for(size_t i = 0; i < 50; i++){
-		EXPECT_EQ(((const unsigned char *)readb3.data)[i], 150 + i);
+		EXPECT_EQ(readb3.get<unsigned char>()[i], 150 + i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb3));
 }
@@ -140,7 +140,7 @@ TEST(SimpleStorage, ReadWriteEraseSimple){
 
 	StorageBuffer writeb = storage->writeb(address);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)writeb.data)[i] = i;
+		writeb.get<unsigned char>()[i] = i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb));
 	EXPECT_EQ(Result::Success, storage->erase(address));
@@ -166,12 +166,12 @@ TEST(SimpleStorage, ReadWriteEraseMultipleAddresses){
 
 	StorageBuffer writeb1 = storage->writeb(address1);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)writeb1.data)[i] = i;
+		writeb1.get<unsigned char>()[i] = i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb1));
 	StorageBuffer writeb2 = storage->writeb(address2);
 	for(size_t i = 0; i < 50; i++){
-		((unsigned char *)writeb2.data)[i] = 100 + i;
+		writeb2.get<unsigned char>()[i] = 100 + i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb2));
 	EXPECT_EQ(Result::Success, storage->erase(address2));
@@ -179,18 +179,18 @@ TEST(SimpleStorage, ReadWriteEraseMultipleAddresses){
 
 	StorageBuffer writeb3 = storage->writeb(address3);
 	for(size_t i = 0; i < 50; i++){
-		((unsigned char *)writeb3.data)[i] = 150 + i;
+		writeb3.get<unsigned char>()[i] = 150 + i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb3));
 
 	StorageBufferRO readb1 = storage->readb(address1);
 	for(size_t i = 0; i < 100; i++){
-		EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+		EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb1));
 	StorageBufferRO readb3 = storage->readb(address3);
 	for(size_t i = 0; i < 50; i++){
-		EXPECT_EQ(((const unsigned char *)readb3.data)[i], 150 + i);
+		EXPECT_EQ(readb3.get<unsigned char>()[i], 150 + i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb3));
 
@@ -219,12 +219,12 @@ TEST(SimpleStorage, ReadWriteEraseMultipleAddressesOverwrite){
 
 	StorageBuffer writeb1 = storage->writeb(address1);
 	for(size_t i = 0; i < 100; i++){
-		((unsigned char *)writeb1.data)[i] = i;
+		writeb1.get<unsigned char>()[i] = i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb1));
 	StorageBuffer writeb2 = storage->writeb(address2);
 	for(size_t i = 0; i < 50; i++){
-		((unsigned char *)writeb2.data)[i] = 100 + i;
+		writeb2.get<unsigned char>()[i] = 100 + i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb2));
 
@@ -233,28 +233,28 @@ TEST(SimpleStorage, ReadWriteEraseMultipleAddressesOverwrite){
 
 	StorageBuffer writeb3 = storage->writeb(address3);
 	for(size_t i = 0; i < 50; i++){
-		((unsigned char *)writeb3.data)[i] = 150 + i;
+		writeb3.get<unsigned char>()[i] = 150 + i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb3));
 	writeb2 = storage->writeb(address2);
 	for(size_t i = 0; i < 50; i++){
-		((unsigned char *)writeb2.data)[i] = 100 + i;
+		writeb2.get<unsigned char>()[i] = 100 + i;
 	}
 	EXPECT_EQ(Result::Success, storage->commit(writeb2));
 
 	StorageBufferRO readb1 = storage->readb(address1);
 	for(size_t i = 0; i < 100; i++){
-		EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+		EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb1));
 	StorageBufferRO readb2 = storage->readb(address2);
 	for(size_t i = 0; i < 50; i++){
-		EXPECT_EQ(((const unsigned char *)readb2.data)[i], 100 + i);
+		EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb2));
 	StorageBufferRO readb3 = storage->readb(address3);
 	for(size_t i = 0; i < 50; i++){
-		EXPECT_EQ(((const unsigned char *)readb3.data)[i], 150 + i);
+		EXPECT_EQ(readb3.get<unsigned char>()[i], 150 + i);
 	}
 	EXPECT_EQ(Result::Success, storage->commit(readb3));
 }
@@ -273,13 +273,13 @@ TEST(SimpleStorage, SerializeDeserializeSimple){
 
 		StorageBuffer writeb1 = storage->writeb(address1);
 		for(size_t i = 0; i < 100; i++){
-			((unsigned char *)writeb1.data)[i] = i;
+			writeb1.get<unsigned char>()[i] = i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb1));
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 	}
@@ -288,7 +288,7 @@ TEST(SimpleStorage, SerializeDeserializeSimple){
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 	}
@@ -314,18 +314,18 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddresses){
 
 		StorageBuffer writeb1 = storage->writeb(address1);
 		for(size_t i = 0; i < 100; i++){
-			((unsigned char *)writeb1.data)[i] = i;
+			writeb1.get<unsigned char>()[i] = i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb1));
 		StorageBuffer writeb2 = storage->writeb(address2);
 		for(size_t i = 0; i < 50; i++){
-			((unsigned char *)writeb2.data)[i] = 100 + i;
+			writeb2.get<unsigned char>()[i] = 100 + i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb2));
 
 		StorageBuffer writeb3 = storage->writeb(address3);
 		for(size_t i = 0; i < 50; i++){
-			((unsigned char *)writeb3.data)[i] = 150 + i;
+			writeb3.get<unsigned char>()[i] = 150 + i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb3));
 
@@ -334,13 +334,13 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddresses){
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 
 		StorageBufferRO readb3 = storage->readb(address3);
 		for(size_t i = 0; i < 50; i++){
-			EXPECT_EQ(((const unsigned char *)readb3.data)[i], 150 + i);
+			EXPECT_EQ(readb3.get<unsigned char>()[i], 150 + i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb3));
 	}
@@ -351,13 +351,13 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddresses){
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 
 		StorageBufferRO readb3 = storage->readb(address3);
 		for(size_t i = 0; i < 50; i++){
-			EXPECT_EQ(((const unsigned char *)readb3.data)[i], 150 + i);
+			EXPECT_EQ(readb3.get<unsigned char>()[i], 150 + i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb3));
 	}
@@ -383,18 +383,18 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
 
 		StorageBuffer writeb1 = storage->writeb(address1);
 		for(size_t i = 0; i < 100; i++){
-			((unsigned char *)writeb1.data)[i] = i;
+			writeb1.get<unsigned char>()[i] = i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb1));
 		StorageBuffer writeb2 = storage->writeb(address2);
 		for(size_t i = 0; i < 50; i++){
-			((unsigned char *)writeb2.data)[i] = 100 + i;
+			writeb2.get<unsigned char>()[i] = 100 + i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb2));
 
 		StorageBuffer writeb3 = storage->writeb(address3);
 		for(size_t i = 0; i < 50; i++){
-			((unsigned char *)writeb3.data)[i] = 150 + i;
+			writeb3.get<unsigned char>()[i] = 150 + i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb3));
 
@@ -403,13 +403,13 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 
 		StorageBufferRO readb3 = storage->readb(address3);
 		for(size_t i = 0; i < 50; i++){
-			EXPECT_EQ(((const unsigned char *)readb3.data)[i], 150 + i);
+			EXPECT_EQ(readb3.get<unsigned char>()[i], 150 + i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb3));
 	}
@@ -427,30 +427,30 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
 
 		StorageBuffer writeb4 = storage->writeb(address4);
 		for(size_t i = 0; i < 60; i++){
-			((unsigned char *)writeb4.data)[i] = i;
+			writeb4.get<unsigned char>()[i] = i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb4));
 		StorageBuffer writeb5 = storage->writeb(address5);
 		for(size_t i = 0; i < 24; i++){
-			((unsigned char *)writeb5.data)[i] = 60 + i;
+			writeb5.get<unsigned char>()[i] = 60 + i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb5));
 
 		StorageBuffer writeb2 = storage->writeb(address2);
 		for(size_t i = 0; i < address2.size; i++){
-			((unsigned char *)writeb2.data)[i] = 99 + i;
+			writeb2.get<unsigned char>()[i] = 99 + i;
 		}
 		EXPECT_EQ(Result::Success, storage->commit(writeb2));
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 
 		StorageBufferRO readb3 = storage->readb(address3);
 		for(size_t i = 0; i < 50; i++){
-			EXPECT_EQ(((const unsigned char *)readb3.data)[i], 150 + i);
+			EXPECT_EQ(readb3.get<unsigned char>()[i], 150 + i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb3));
 
@@ -462,13 +462,13 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
-			EXPECT_EQ(((const unsigned char *)readb1.data)[i], i);
+			EXPECT_EQ(readb1.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 
 		StorageBufferRO readb2 = storage->readb(address2);
 		for(size_t i = 0; i < address2.size; i++){
-			EXPECT_EQ(((const unsigned char *)readb2.data)[i], 99 + i);
+			EXPECT_EQ(readb2.get<unsigned char>()[i], 99 + i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb2));
 
@@ -476,13 +476,13 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
 
 		StorageBufferRO readb4 = storage->readb(address4);
 		for(size_t i = 0; i < 60; i++){
-			EXPECT_EQ(((const unsigned char *)readb4.data)[i], i);
+			EXPECT_EQ(readb4.get<unsigned char>()[i], i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb4));
 
 		StorageBufferRO readb5 = storage->readb(address5);
 		for(size_t i = 0; i < 24; i++){
-			EXPECT_EQ(((const unsigned char *)readb5.data)[i], 60 + i);
+			EXPECT_EQ(readb5.get<unsigned char>()[i], 60 + i);
 		}
 		EXPECT_EQ(Result::Success, storage->commit(readb5));
 	}

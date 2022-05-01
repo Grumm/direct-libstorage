@@ -4,6 +4,7 @@
 #include <Utils.hpp>
 #include <RandomMemoryAccess.hpp>
 #include <DataStorage.hpp>
+#include <Serialize.hpp>
 
 
 /*
@@ -149,87 +150,72 @@ public:
 		return Result::Success;
 	}
 
-	size_t get_size(size_t extra = 0) const {
-		//TODO calculate data needed for serialization
-		return (m.size() + extra) * (sizeof(uint64_t) + sizeof(size_t) * 2) + sizeof(size_t) +
-			(unmapped.size() + extra) * (sizeof(uint64_t) + sizeof(size_t)) + sizeof(size_t) +
-			(empty.size() + extra) * (sizeof(size_t) + sizeof(size_t)) + sizeof(size_t) +
-			(sizeof(uint64_t) + sizeof(size_t));
+	size_t get_size_extra(size_t extra = 0) const {
+		size_t sum = 0;
+		sum += sizeof(size_t) + sizeof(decltype(m)::value_type) * (m.size() + extra);
+		sum += sizeof(size_t) + sizeof(decltype(empty)::value_type) * (empty.size() + extra);
+		sum += sizeof(size_t) + sizeof(decltype(unmapped)::value_type) * (unmapped.size() + extra);
+		sum += sizeof(max);
+		return sum;
 	}
-protected:
-	template <typename T>
-	struct SerializableMap{
-		size_t size;
-		T data[0];
-	};
-	using M_Type = std::pair<uint64_t, std::pair<size_t, size_t>>;
-	using Unmapped_Type = std::pair<size_t, size_t>;
-	using Empty_Type = std::pair<size_t, size_t>;
-public:
+
 	//only sequential support
-	Result serialize(const StorageBuffer &buffer) const{
-		ASSERT_ON(get_size() > buffer.allocated());
+	Result serializeImpl(const StorageBuffer<> &buffer) const{
+		ASSERT_ON(get_size_extra() > buffer.allocated());
 		size_t offset = 0;
-		auto *sm1 = buffer.get<SerializableMap<M_Type>>();
-		sm1->size = m.size();
-		size_t i = 0;
+		auto buf = buffer.offset_advance(offset, sizeof(size_t));
+		szeimpl::s(m.size(), buf);
 		for(auto it: m){
-			sm1->data[i++] = it;
+			buf = buffer.offset_advance(offset, sizeof(it));
+			szeimpl::s(it, buf);
 		}
-		offset += sizeof(size_t) + sizeof(M_Type) * sm1->size;
-		auto *sm2 = static_cast<SerializableMap<Unmapped_Type> *>(PTR_OFFSET(buffer.data, offset));
-		sm2->size = empty.size();
-		i = 0;
+		buf = buffer.offset_advance(offset, sizeof(size_t));
+		szeimpl::s(unmapped.size(), buf);
 		for(auto it: unmapped){
-			sm2->data[i++] = it;
+			buf = buffer.offset_advance(offset, sizeof(it));
+			szeimpl::s(it, buf);
 		}
-		offset += sizeof(size_t) + sizeof(Unmapped_Type) * sm2->size;
-		auto *sm3 = static_cast<SerializableMap<Empty_Type> *>(PTR_OFFSET(buffer.data, offset));
-		sm3->size = empty.size();
-		i = 0;
+		buf = buffer.offset_advance(offset, sizeof(size_t));
+		szeimpl::s(empty.size(), buf);
 		for(auto it: empty){
-			sm3->data[i++] = it;
+			buf = buffer.offset_advance(offset, sizeof(it));
+			szeimpl::s(it, buf);
 		}
-		offset += sizeof(size_t) + sizeof(Empty_Type) * sm3->size;
-		uint64_t *max_addr = static_cast<uint64_t *>(PTR_OFFSET(buffer.data, offset));
-		offset += sizeof(uint64_t);
-		uint64_t *max_offset = static_cast<uint64_t *>(PTR_OFFSET(buffer.data, offset));
-		*max_addr = max.first;
-		*max_offset = max.second;
+		buf = buffer.offset_advance(offset, sizeof(max));
+		szeimpl::s(max, buf);
 		
 		return Result::Success;
 	}
 
-	Result deserialize(const StorageBufferRO &buffer) {
-		m.clear();
-		empty.clear();
-		max.first = 0; max.second = 0;
+	static VirtAddressMapping deserializeImpl(const StorageBufferRO<> &buffer) {
+		VirtAddressMapping vam;
 
 		size_t offset = 0;
-		const auto *sm1 = static_cast<const SerializableMap<M_Type> *>(buffer.data);
-		for(size_t i = 0; i < sm1->size; i++){
-			m.insert(sm1->data[i]);
+		size_t num;
+		auto buf = buffer.offset_advance(offset, sizeof(size_t));
+		num = szeimpl::d<size_t>(buf);
+		for(size_t i = 0; i < num; i++){
+			buf = buffer.offset_advance(offset, sizeof(decltype(m)::value_type));
+			vam.m.insert(szeimpl::d<decltype(m)::value_type>(buf));
 		}
-		offset += sizeof(size_t) + sizeof(M_Type) * sm1->size;
-		const auto *sm2 = static_cast<const SerializableMap<Unmapped_Type> *>(PTR_OFFSET(buffer.data, offset));
-		for(size_t i = 0; i < sm2->size; i++){
-			unmapped.insert(sm2->data[i]);
+		num = szeimpl::d<size_t>(buf);
+		for(size_t i = 0; i < num; i++){
+			buf = buffer.offset_advance(offset, sizeof(decltype(unmapped)::value_type));
+			vam.unmapped.insert(szeimpl::d<decltype(unmapped)::value_type>(buf));
 		}
-
-		offset += sizeof(size_t) + sizeof(Unmapped_Type) * sm2->size;
-		const auto *sm3 = static_cast<const SerializableMap<Empty_Type> *>(PTR_OFFSET(buffer.data, offset));
-		for(size_t i = 0; i < sm3->size; i++){
-			empty.insert(sm3->data[i]);
+		num = szeimpl::d<size_t>(buf);
+		for(size_t i = 0; i < num; i++){
+			buf = buffer.offset_advance(offset, sizeof(decltype(empty)::value_type));
+			vam.empty.insert(szeimpl::d<decltype(empty)::value_type>(buf));
 		}
-
-		offset += sizeof(size_t) + sizeof(Empty_Type) * sm3->size;
-		const uint64_t *max_addr = static_cast<const uint64_t *>(PTR_OFFSET(buffer.data, offset));
-		offset += sizeof(uint64_t);
-		const uint64_t *max_offset = static_cast<const uint64_t *>(PTR_OFFSET(buffer.data, offset));
-		max.first = *max_addr;
-		max.second = *max_offset;
+		buf = buffer.offset_advance(offset, sizeof(max));
+		vam.max = szeimpl::d<decltype(max)>(buf);
 		
-		return Result::Success;
+		return vam;
+	}
+
+	size_t getSizeImpl() const {
+		return get_size_extra(0);
 	}
 };
 
@@ -253,7 +239,7 @@ class SimpleStorage: public DataStorage{
 
 	void init_simple_storage(size_t static_size){
 		StorageBufferRO metadata_buf{rma.readb(0, sizeof(FileMetadata))};
-		const FileMetadata *fm = static_cast<const FileMetadata *>(metadata_buf.data);
+		const FileMetadata *fm = metadata_buf.get<FileMetadata>();
 		if(fm->magic != MAGIC){
 			//new file!
 			metadata.magic = MAGIC;
@@ -267,7 +253,7 @@ class SimpleStorage: public DataStorage{
 			metadata = *fm;
 			ASSERT_ON(metadata.static_addr.size < static_size);
 			StorageBufferRO vmap_buf{rma.readb(metadata.va_offset, metadata.va_size)};
-			mapping.deserialize(vmap_buf);
+			mapping = szeimpl::d<decltype(mapping)>(vmap_buf);
 			mapping.del(metadata.va_addr, metadata.va_size);
 		}
 	}
@@ -296,10 +282,10 @@ public:
 		return StorageAddress{address.addr + address.size, size};
 	}
 
-	virtual Result write(const StorageAddress &addr, const StorageBuffer &buffer) override {
+	virtual Result write(const StorageAddress &addr, const StorageBuffer<> &buffer) override {
 		auto [offset, size] = mapping.lookup(addr.addr, addr.size);
 		LOG_INFO("Storage::write [%lu,%lu]", offset, size);
-		ASSERT_ON(size < buffer.size);
+		ASSERT_ON(size < buffer.size());
 		ASSERT_ON(offset == 0);
 		return rma.write(offset, buffer);
 	}
@@ -307,32 +293,32 @@ public:
 		//stub, no implementation
 		return mapping.del(addr.addr, addr.size);
 	}
-	virtual Result read(const StorageAddress &addr, StorageBuffer &buffer) override {
+	virtual Result read(const StorageAddress &addr, StorageBuffer<> &buffer) override {
 		auto [offset, size] = mapping.lookup(addr.addr, addr.size, true);
 		LOG_INFO("Storage::read [%lu,%lu]", offset, size);
 		ASSERT_ON(size > addr.size);
-		ASSERT_ON(addr.size > buffer.alloc);
+		ASSERT_ON(addr.size > buffer.allocated());
 		ASSERT_ON(offset == 0);
 		return rma.read(offset, addr.size, buffer);
 	}
 
-	virtual StorageBuffer writeb(const StorageAddress &addr) override{
+	virtual StorageBuffer<> writeb(const StorageAddress &addr) override{
 		auto [offset, size] = mapping.lookup(addr.addr, addr.size);
 		ASSERT_ON(size < addr.size);
 		ASSERT_ON(offset == 0);
 		return rma.writeb(offset, addr.size);
 	}
-	virtual StorageBufferRO readb(const StorageAddress &addr) override{
+	virtual StorageBufferRO<> readb(const StorageAddress &addr) override{
 		auto [offset, size] = mapping.lookup(addr.addr, addr.size, true);
 		ASSERT_ON(size > addr.size);
 		ASSERT_ON(offset == 0);
 		return rma.readb(offset, addr.size);
 	}
-	virtual Result commit(const StorageBuffer &buffer) override{
+	virtual Result commit(const StorageBuffer<> &buffer) override{
 		//stub, no implementation
 		return Result::Success;
 	}
-	virtual Result commit(const StorageBufferRO &buffer) override{
+	virtual Result commit(const StorageBufferRO<> &buffer) override{
 		//stub, no implementation
 		return Result::Success;
 	}
@@ -344,13 +330,13 @@ public:
 
 	virtual ~SimpleStorage(){
 		//serialize to rma
-		metadata.va_size = mapping.get_size(1);
+		metadata.va_size = mapping.get_size_extra(1);
 		metadata.va_offset = mapping.alloc(metadata.va_addr, metadata.va_size);
 		StorageBuffer vmap_buf{rma.writeb(metadata.va_offset, metadata.va_size)};
-		mapping.serialize(vmap_buf);
+		szeimpl::s(mapping, vmap_buf);
 
 		StorageBuffer metadata_buf{rma.writeb(0, sizeof(FileMetadata))};
-		FileMetadata *fm = static_cast<FileMetadata *>(metadata_buf.data);
+		FileMetadata *fm = metadata_buf.get<FileMetadata>();
 		*fm = metadata;
 	}
 };

@@ -19,13 +19,15 @@
 
 #ifdef NDEBUG
 #define ASSERT_ON(cond)
+#define ASSERT_ON_MSG(cond, msg)
 #else
-#define ASSERT_ON(cond) do{ \
+#define ASSERT_ON_MSG(cond, msg) do{ \
 		if(cond) [[unlikely]]{ \
-			LOG_ASSERT("Assert " #cond); \
+			LOG_ASSERT("Assert " msg " " #cond); \
 			throw std::logic_error("Assert " #cond); \
 		} \
 	}while(0)
+#define ASSERT_ON(cond) ASSERT_ON_MSG(cond, "")
 #endif
 
 #ifndef DEBUG

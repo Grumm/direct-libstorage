@@ -23,14 +23,14 @@ public:
     	m = other.m;
     }
 
-    Result serializeImpl(const StorageBuffer &buffer) const {
-    	int *i = static_cast<int *>(buffer.data);
+    Result serializeImpl(const StorageBuffer<> &buffer) const {
+    	int *i = buffer.get<int>();
     	i[0] = m.begin()->first;
     	i[1] = m.begin()->second;
     	return Result::Success;
     }
-    static SerializableImplTest deserializeImpl(const StorageBufferRO &buffer) {
-    	const int *i = static_cast<const int *>(buffer.data);
+    static SerializableImplTest deserializeImpl(const StorageBufferRO<> &buffer) {
+    	const int *i = buffer.get<int>();
     	return SerializableImplTest{i[0], i[1]};
     }
     size_t getSizeImpl() const {
@@ -41,8 +41,7 @@ public:
 const std::string filename{"/tmp/FileRMA.test"};
 
 TEST(SerializeTest, SimpleSerializeDeserialize){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	SerializableImplTest si{1, 2};
@@ -52,8 +51,7 @@ TEST(SerializeTest, SimpleSerializeDeserialize){
 }
 
 TEST(SerializeTest, SimpleOverwrite){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	SerializableImplTest si{1, 2};
@@ -69,8 +67,7 @@ TEST(SerializeTest, SimpleOverwrite){
 }
 
 TEST(SerializeTest, IntegralSerializeDeserialize){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	int a = 3;
@@ -80,8 +77,7 @@ TEST(SerializeTest, IntegralSerializeDeserialize){
 }
 
 TEST(SerializeTest, IntegralOverwrite){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	int a1 = 5;
@@ -97,8 +93,7 @@ TEST(SerializeTest, IntegralOverwrite){
 }
 
 TEST(SerializeTest, StringSerializeDeserialize){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 	{
 		std::string s{"string1"};
@@ -115,8 +110,7 @@ TEST(SerializeTest, StringSerializeDeserialize){
 }
 
 TEST(SerializeTest, StringOverwrite){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	std::string s1{"string1"};
@@ -143,8 +137,7 @@ struct TestPOD{
 };
 
 TEST(SerializeTest, PODSerializeDeserialize){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	TestPOD pod{6, 444444, true, TestPOD::E::e2};
@@ -157,8 +150,7 @@ TEST(SerializeTest, PODSerializeDeserialize){
 }
 
 TEST(SerializeTest, PODOverwrite){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<20>(filename)};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	TestPOD pod1{6, 444444, true, TestPOD::E::e2};
@@ -177,6 +169,72 @@ TEST(SerializeTest, PODOverwrite){
 	ASSERT_EQ(pod2.b, pod2_res.b);
 	ASSERT_EQ(pod2.c, pod2_res.c);
 	ASSERT_EQ(pod2.e, pod2_res.e);
+}
+
+TEST(SerializeTest, SimplePairSerializeDeserialize){
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+
+	std::pair<int, const uint64_t> pair1{-5, 0xfffffE6};
+	StorageAddress addr = serialize<StorageAddress>(*storage.get(), pair1);
+	auto pair_res = deserialize<decltype(pair1)>(*storage.get(), addr);
+	ASSERT_EQ(pair_res.first, -5);
+	ASSERT_EQ(pair_res.second, 0xfffffE6);
+}
+
+TEST(SerializeTest, ComplexPairSerializeDeserialize){
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+
+	TestPOD pod1{6, 444444, true, TestPOD::E::e2};
+	SerializableImplTest si1{13, -2};
+	std::pair<const std::pair<TestPOD, std::string>,
+		std::pair<const uint64_t, SerializableImplTest>> pair1{{pod1, "t1anyways"}, {111, si1}};
+	StorageAddress addr = serialize<StorageAddress>(*storage.get(), pair1);
+	auto pair_res = deserialize<decltype(pair1)>(*storage.get(), addr);
+	auto &pod_res = pair_res.first.first;
+	auto &str_res = pair_res.first.second;
+	auto &u64_res = pair_res.second.first;
+	auto &si_res = pair_res.second.second;
+	ASSERT_EQ(pod_res.a, pod1.a);
+	ASSERT_EQ(pod_res.b, pod1.b);
+	ASSERT_EQ(pod_res.c, pod1.c);
+	ASSERT_EQ(pod_res.e, pod1.e);
+	ASSERT_EQ(str_res, "t1anyways");
+	ASSERT_EQ(u64_res, 111UL);
+	ASSERT_EQ(si_res.m[13], -2);
+}
+
+TEST(SerializeTest, SimpleTupleSerializeDeserialize){
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+
+	std::tuple<int, uint64_t, const char> tuple1{-333, 0xeeef6, 'L'};
+	StorageAddress addr = serialize<StorageAddress>(*storage.get(), tuple1);
+	auto tuple_res = deserialize<decltype(tuple1)>(*storage.get(), addr);
+	ASSERT_EQ(std::get<0>(tuple_res), -333);
+	ASSERT_EQ(std::get<1>(tuple_res), 0xeeef6);
+	ASSERT_EQ(std::get<2>(tuple_res), 'L');
+}
+
+TEST(SerializeTest, ComplexTupleSerializeDeserialize){
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+
+	SerializableImplTest si1{13, -2};
+	TestPOD pod1{6, 444444, true, TestPOD::E::e2};
+	std::tuple<SerializableImplTest, uint64_t,
+		const std::pair<const char, TestPOD>> tuple1{si1, 0xeeef6, {'W', pod1}};
+	StorageAddress addr = serialize<StorageAddress>(*storage.get(), tuple1);
+	auto tuple_res = deserialize<decltype(tuple1)>(*storage.get(), addr);
+	ASSERT_EQ(std::get<0>(tuple_res).m[13], -2);
+	ASSERT_EQ(std::get<1>(tuple_res), 0xeeef6);
+	ASSERT_EQ(std::get<2>(tuple_res).first, 'W');
+	auto &pod_res = std::get<2>(tuple_res).second;
+	ASSERT_EQ(pod_res.a, pod1.a);
+	ASSERT_EQ(pod_res.b, pod1.b);
+	ASSERT_EQ(pod_res.c, pod1.c);
+	ASSERT_EQ(pod_res.e, pod1.e);
 }
 
 }

@@ -11,8 +11,32 @@ public:
 	template<typename T>
 		requires std::negation_v<std::is_same<T, void>>
 	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
-		StorageBuffer<> &sb = reinterpret_cast<StorageBuffer<>>(buffer);
-		return read(addr, sb);
+		return read(addr, buffer.template cast<void>());
+	}
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	Result write(const StorageAddress &addr, const StorageBuffer<T> &buffer){
+		return write(addr, buffer.template cast<void>());
+	}
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	Result commit(StorageBuffer<T> &buffer){
+		return commit(buffer.template cast<void>());
+	}
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	Result commit(StorageBufferRO<T> &buffer){
+		return commit(buffer.template cast<void>());
+	}
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	StorageBuffer<T> writeb(const StorageAddress &addr){
+		return writeb(addr).template cast<T>();
+	}
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	StorageBufferRO<T> readb(const StorageAddress &addr){
+		return writeb(addr).template cast<T>();
 	}
 
 	virtual StorageAddress get_static_section() = 0;

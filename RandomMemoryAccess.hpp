@@ -23,8 +23,7 @@ public:
 	template<typename T>
 		requires std::negation_v<std::is_same<T, void>>
 	Result read(size_t offset, size_t size, StorageBuffer<T> &buffer){
-		StorageBuffer<> *sb = reinterpret_cast<StorageBuffer<> *>(&buffer);
-		return read(offset, size, *sb);
+		return read(offset, size, buffer.template cast<void>());
 	}
 
 	virtual Result open() = 0;

@@ -96,11 +96,26 @@ public:
         m.erase(std::make_tuple(keys...));
     }
     //CSerializableImpl
-    Result serializeImpl(const StorageBuffer &buffer) const { throw std::bad_function_call("Not implemented"); }
+    Result serializeImpl(const StorageBuffer &buffer) const {
+        StorageBuffer &buffer_iter = buffer;
+        for(auto &e: m){
+            std::apply([&buffer_iter](auto&&... args){
+                ((sum += szeimpl::s(arg, buffer_iter.advance(szeimpl::size(arg)))),
+                ...);
+            }, e.first);
+        }
+    }
     template <CSerializable Value, CSerializable ...Keys>
     static SimpleMultiLevelKeyMap<Value, Keys...>
     deserializeImpl(const StorageBufferRO &buffer) { throw std::bad_function_call("Not implemented"); }
-    size_t getSizeImpl() const { throw std::bad_function_call("Not implemented"); }
+    size_t getSizeImpl() const {
+        size_t sum = 0;
+        for(auto &e: m){
+            std::apply([&sum](auto&&... arg){ ((sum += szeimpl::size(arg)), ...);}, e.first);
+            sum += szeimpl::size(e.second);
+        }
+        return sum;
+    }
 };
 
 template <CSerializable Value, CSerializable ...Keys>

@@ -28,8 +28,10 @@ public:
 	StorageBuffer(StorageBuffer &&buf) = default;
 
 	template<typename U = T>
-	StorageBuffer(const StorageBuffer<U> &buf):
+	constexpr StorageBuffer(const StorageBuffer<U> &buf):
 		data(buf.template get<T>()), data_size(buf.size()), data_allocated(buf.allocated()) {}
+	constexpr StorageBuffer(const StorageBuffer<T> &buf):
+		data(buf.get()), data_size(buf.size()), data_allocated(buf.allocated()) {}
 
 	constexpr StorageBuffer &operator=(const StorageBuffer &buf){
 		data = buf.get();
@@ -39,12 +41,20 @@ public:
 		return *this;
 	}
 	template<typename U = T>
-	StorageBuffer &operator=(const StorageBuffer<U> &buf){
+	constexpr StorageBuffer &operator=(const StorageBuffer<U> &buf){
 		data = buf.template get<T>();
 		data_size = buf.size();
 		data_allocated = buf.allocated();
 
 		return *this;
+	}
+	template<typename U = T>
+	StorageBuffer<U> &cast() {
+		return *reinterpret_cast<StorageBuffer<U> *>(this);
+	}
+	template<typename U = T>
+	const StorageBuffer<U> &cast() const{
+		return *reinterpret_cast<const StorageBuffer<U> *>(this);
 	}
 
 	template<typename U = T>
@@ -114,11 +124,19 @@ public:
 		return *this;
 	}
 	template<typename U = T>
-	StorageBufferRO &operator=(const StorageBufferRO<U> &buf){
+	constexpr StorageBufferRO &operator=(const StorageBufferRO<U> &buf){
 		data = buf.template get<T>();
 		data_size = buf.size();
 
 		return *this;
+	}
+	template<typename U = T>
+	StorageBufferRO<U> &cast() {
+		return *reinterpret_cast<StorageBufferRO<U> *>(this);
+	}
+	template<typename U = T>
+	const StorageBufferRO<U> &cast() const{
+		return *reinterpret_cast<const StorageBufferRO<U> *>(this);
 	}
 
 	template<typename U = T>
