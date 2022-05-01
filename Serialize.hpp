@@ -77,17 +77,17 @@ constexpr Result s(const T &t, StorageBuffer<U> &buffer){
 
 template<CBuiltinSerializable T, typename U>
 constexpr Result s(const T &t, StorageBuffer<U> &buffer){
-    return BuiltinSerializeImpl<std::decay_t<T>>{t}.template serializeImpl(buffer.template cast<void>());
+    return BuiltinSerializeImpl<std::remove_cvref_t<T>>{t}.template serializeImpl(buffer.template cast<void>());
 }
 
 template<CSerializableImpl T, typename U>
 T d(const StorageBufferRO<U> &buffer) {
-    return std::decay_t<T>::deserializeImpl(buffer.template cast<void>());
+    return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>());
 }
 
 template<CBuiltinSerializable T, typename U>
 T d(const StorageBufferRO<U> &buffer) {
-    return BuiltinSerializeImpl<std::decay_t<T>>::
+    return BuiltinSerializeImpl<std::remove_cvref_t<T>>::
         deserializeImpl(buffer.template cast<void>()).getObj();
 }
 
@@ -270,7 +270,7 @@ auto apply_impl(F& f, std::index_sequence<I...>) {
 }
 template<typename Tuple, typename F>
 auto apply_make_tuple(F& f) {
-    using Indices = makeIndexSequenceReverse<std::tuple_size<std::decay_t<Tuple>>::value>;
+    using Indices = makeIndexSequenceReverse<std::tuple_size<std::remove_cvref_t<Tuple>>::value>;
     return reverse_tuple(apply_impl<Tuple, F>(f, Indices()));
 }
 
@@ -287,7 +287,7 @@ public:
         std::apply([&buf, buffer, &offset, &res](auto&&... arg){
             ((
                 buf = buffer.offset_advance(offset, szeimpl::size(arg)),
-                res = szeimpl::s<std::decay_t<decltype(arg)>>(arg, buf) /*TODO res && */
+                res = szeimpl::s<std::remove_cvref_t<decltype(arg)>>(arg, buf) /*TODO res && */
             ),
                 ...);
         }, obj);

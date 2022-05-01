@@ -163,19 +163,19 @@ public:
 	Result serializeImpl(const StorageBuffer<> &buffer) const{
 		ASSERT_ON(get_size_extra() > buffer.allocated());
 		size_t offset = 0;
-		auto buf = buffer.offset_advance(offset, sizeof(size_t));
+		auto buf = buffer.offset_advance(offset, sizeof(decltype(m)::size_type));
 		szeimpl::s(m.size(), buf);
 		for(auto it: m){
 			buf = buffer.offset_advance(offset, sizeof(it));
 			szeimpl::s(it, buf);
 		}
-		buf = buffer.offset_advance(offset, sizeof(size_t));
+		buf = buffer.offset_advance(offset, sizeof(decltype(unmapped)::size_type));
 		szeimpl::s(unmapped.size(), buf);
 		for(auto it: unmapped){
 			buf = buffer.offset_advance(offset, sizeof(it));
 			szeimpl::s(it, buf);
 		}
-		buf = buffer.offset_advance(offset, sizeof(size_t));
+		buf = buffer.offset_advance(offset, sizeof(decltype(empty)::size_type));
 		szeimpl::s(empty.size(), buf);
 		for(auto it: empty){
 			buf = buffer.offset_advance(offset, sizeof(it));
@@ -192,18 +192,20 @@ public:
 
 		size_t offset = 0;
 		size_t num;
-		auto buf = buffer.offset_advance(offset, sizeof(size_t));
-		num = szeimpl::d<size_t>(buf);
+		auto buf = buffer.offset_advance(offset, sizeof(decltype(m)::size_type));
+		num = szeimpl::d<decltype(m)::size_type>(buf);
 		for(size_t i = 0; i < num; i++){
 			buf = buffer.offset_advance(offset, sizeof(decltype(m)::value_type));
 			vam.m.insert(szeimpl::d<decltype(m)::value_type>(buf));
 		}
-		num = szeimpl::d<size_t>(buf);
+		buf = buffer.offset_advance(offset, sizeof(decltype(unmapped)::size_type));
+		num = szeimpl::d<decltype(unmapped)::size_type>(buf);
 		for(size_t i = 0; i < num; i++){
 			buf = buffer.offset_advance(offset, sizeof(decltype(unmapped)::value_type));
 			vam.unmapped.insert(szeimpl::d<decltype(unmapped)::value_type>(buf));
 		}
-		num = szeimpl::d<size_t>(buf);
+		buf = buffer.offset_advance(offset, sizeof(decltype(empty)::size_type));
+		num = szeimpl::d<decltype(empty)::size_type>(buf);
 		for(size_t i = 0; i < num; i++){
 			buf = buffer.offset_advance(offset, sizeof(decltype(empty)::value_type));
 			vam.empty.insert(szeimpl::d<decltype(empty)::value_type>(buf));
