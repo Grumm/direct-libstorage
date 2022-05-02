@@ -6,6 +6,8 @@ find_package(GTest REQUIRED)
 
 include_directories(${LIBSTORAGE_HEADERS_DIR})
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused")
+
 macro(package_add_test TESTNAME)
     # create an executable in which the tests will be stored
     add_executable(${TESTNAME} ${ARGN}) # main.cpp

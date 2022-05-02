@@ -317,16 +317,16 @@ public:
 		ASSERT_ON(offset == 0);
 		return rma.readb(offset, addr.size);
 	}
-	virtual Result commit(const StorageBuffer<> &buffer) override{
+	virtual Result commit([[maybe_unused]] const StorageBuffer<> &buffer) override{
 		//stub, no implementation
 		return Result::Success;
 	}
-	virtual Result commit(const StorageBufferRO<> &buffer) override{
+	virtual Result commit([[maybe_unused]] const StorageBufferRO<> &buffer) override{
 		//stub, no implementation
 		return Result::Success;
 	}
 
-	virtual Stat stat(const StorageAddress &addr) override{
+	virtual Stat stat([[maybe_unused]] const StorageAddress &addr) override{
 		//stub, no implementation
 		return Stat{};
 	}
