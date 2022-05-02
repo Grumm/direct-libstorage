@@ -1,7 +1,8 @@
 
-#include <libstorage/SimpleStorage.hpp>
 #include <cstdio>
 #include <memory>
+
+#include <storage/SimpleStorage.hpp>
 
 #include "gtest/gtest.h"
 

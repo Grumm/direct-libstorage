@@ -1,7 +1,7 @@
-
-#include <libstorage/RandomMemoryAccess.hpp>
 #include <cstdio>
 #include <memory>
+
+#include <storage/RandomMemoryAccess.hpp>
 
 #include "gtest/gtest.h"
 
@@ -14,6 +14,7 @@ Scenario is read write:
 */
 
 const std::string filename{"/tmp/FileRMA.test"};
+constexpr size_t FILESIZE = 12;
 
 
 enum TestRMAChild{
@@ -28,9 +29,9 @@ public:
 	RMATestFixture(){
 		if(GetParam() == TestRMAChild::File){
 			::remove(filename.c_str());
-			rma = std::unique_ptr<RMAInterface>(new FileRMA<20>(filename));
+			rma = std::unique_ptr<RMAInterface>(new FileRMA<FILESIZE>(filename));
 		} else if (GetParam() == TestRMAChild::Memory){
-			rma = std::unique_ptr<RMAInterface>(new MemoryRMA<20>());
+			rma = std::unique_ptr<RMAInterface>(new MemoryRMA<FILESIZE>());
 		}
 	}
 	~RMATestFixture(){
@@ -87,7 +88,7 @@ TEST_P(RMATestFixture, ReadWriteNonSequential){
 	for(size_t i = 0; i < 100; i++){
 		buf2.get<unsigned char>()[i] = 100 + i;
 	}
-	StorageBuffer buf3 = rma->writeb(9000, 55);
+	StorageBuffer buf3 = rma->writeb(1903, 55);
 	for(size_t i = 0; i < 55; i++){
 		buf3.get<unsigned char>()[i] = 200 + i;
 	}
@@ -100,7 +101,7 @@ TEST_P(RMATestFixture, ReadWriteNonSequential){
 	for(size_t i = 0; i < 100; i++){
 		EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 	}
-	StorageBufferRO readb3 = rma->readb(9000, 55);
+	StorageBufferRO readb3 = rma->readb(1903, 55);
 	for(size_t i = 0; i < 55; i++){
 		EXPECT_EQ(readb3.get<unsigned char>()[i], 200 + i);
 	}
@@ -113,7 +114,7 @@ INSTANTIATE_TEST_SUITE_P(RMAInterface,
 TEST(FileRMAReadWrite, ReadWriteReopen){
 	::remove(filename.c_str());
 	{
-		std::unique_ptr<RMAInterface> rma{new FileRMA(filename)};
+		std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
 
 		StorageBuffer buf1 = rma->writeb(0, 100);
 		for(size_t i = 0; i < 100; i++){
@@ -123,7 +124,7 @@ TEST(FileRMAReadWrite, ReadWriteReopen){
 		for(size_t i = 0; i < 100; i++){
 			buf2.get<unsigned char>()[i] = 100 + i;
 		}
-		StorageBuffer buf3 = rma->writeb(9000, 55);
+		StorageBuffer buf3 = rma->writeb(1900, 55);
 		for(size_t i = 0; i < 55; i++){
 			buf3.get<unsigned char>()[i] = 200 + i;
 		}
@@ -136,13 +137,13 @@ TEST(FileRMAReadWrite, ReadWriteReopen){
 		for(size_t i = 0; i < 100; i++){
 			EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 		}
-		StorageBufferRO readb3 = rma->readb(9000, 55);
+		StorageBufferRO readb3 = rma->readb(1900, 55);
 		for(size_t i = 0; i < 55; i++){
 			EXPECT_EQ(readb3.get<unsigned char>()[i], 200 + i);
 		}
 	}
 	{
-		std::unique_ptr<RMAInterface> rma{new FileRMA(filename)};
+		std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
 
 		StorageBufferRO readb1 = rma->readb(0, 100);
 		for(size_t i = 0; i < 100; i++){
@@ -152,7 +153,7 @@ TEST(FileRMAReadWrite, ReadWriteReopen){
 		for(size_t i = 0; i < 100; i++){
 			EXPECT_EQ(readb2.get<unsigned char>()[i], 100 + i);
 		}
-		StorageBufferRO readb3 = rma->readb(9000, 55);
+		StorageBufferRO readb3 = rma->readb(1900, 55);
 		for(size_t i = 0; i < 55; i++){
 			EXPECT_EQ(readb3.get<unsigned char>()[i], 200 + i);
 		}

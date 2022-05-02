@@ -1,15 +1,17 @@
 
-#include <libstorage/Serialize.hpp>
-#include <libstorage/SimpleStorage.hpp>
-#include <libstorage/RandomMemoryAccess.hpp>
-
 #include <cstdio>
 #include <memory>
+
+#include <storage/Serialize.hpp>
+#include <storage/SimpleStorage.hpp>
+#include <storage/RandomMemoryAccess.hpp>
 
 #include "gtest/gtest.h"
 
 
 namespace{
+
+constexpr size_t FILESIZE=12;
 
 class SerializableImplTest;
 
@@ -41,7 +43,7 @@ public:
 const std::string filename{"/tmp/FileRMA.test"};
 
 TEST(SerializeTest, SimpleSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	SerializableImplTest si{1, 2};
@@ -51,7 +53,7 @@ TEST(SerializeTest, SimpleSerializeDeserialize){
 }
 
 TEST(SerializeTest, SimpleOverwrite){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	SerializableImplTest si{1, 2};
@@ -67,7 +69,7 @@ TEST(SerializeTest, SimpleOverwrite){
 }
 
 TEST(SerializeTest, IntegralSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	int a = 3;
@@ -77,7 +79,7 @@ TEST(SerializeTest, IntegralSerializeDeserialize){
 }
 
 TEST(SerializeTest, IntegralOverwrite){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	int a1 = 5;
@@ -93,7 +95,7 @@ TEST(SerializeTest, IntegralOverwrite){
 }
 
 TEST(SerializeTest, StringSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 	{
 		std::string s{"string1"};
@@ -110,7 +112,7 @@ TEST(SerializeTest, StringSerializeDeserialize){
 }
 
 TEST(SerializeTest, StringOverwrite){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	std::string s1{"string1"};
@@ -137,7 +139,7 @@ struct TestPOD{
 };
 
 TEST(SerializeTest, PODSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	TestPOD pod{6, 444444, true, TestPOD::E::e2};
@@ -150,7 +152,7 @@ TEST(SerializeTest, PODSerializeDeserialize){
 }
 
 TEST(SerializeTest, PODOverwrite){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	TestPOD pod1{6, 444444, true, TestPOD::E::e2};
@@ -172,7 +174,7 @@ TEST(SerializeTest, PODOverwrite){
 }
 
 TEST(SerializeTest, SimplePairSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	std::pair<int, const uint64_t> pair1{-5, 0xfffffE6};
@@ -183,7 +185,7 @@ TEST(SerializeTest, SimplePairSerializeDeserialize){
 }
 
 TEST(SerializeTest, ComplexPairSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	TestPOD pod1{6, 444444, true, TestPOD::E::e2};
@@ -206,7 +208,7 @@ TEST(SerializeTest, ComplexPairSerializeDeserialize){
 }
 
 TEST(SerializeTest, SimpleTupleSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	std::tuple<int, uint64_t, const char> tuple1{-333, 0xeeef6, 'L'};
@@ -218,7 +220,7 @@ TEST(SerializeTest, SimpleTupleSerializeDeserialize){
 }
 
 TEST(SerializeTest, ComplexTupleSerializeDeserialize){
-	std::unique_ptr<RMAInterface> rma{new MemoryRMA<20>()};
+	std::unique_ptr<RMAInterface> rma{new MemoryRMA<FILESIZE>()};
 	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
 
 	SerializableImplTest si1{13, -2};
