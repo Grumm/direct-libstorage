@@ -1,4 +1,4 @@
-#include "SequenceStorage.hpp"
+#include <libstorage/SequenceStorage.hpp>
 
 /****************************************************/
 

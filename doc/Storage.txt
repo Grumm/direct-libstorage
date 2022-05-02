@@ -1,0 +1,38 @@
+task:
+
+store objects on dist and get them to in-memory instances on-demand
+components:
+1) raw storage. on-disk, in-memory, synchronyzation on-demand swap-like. could be generalized to n-tier memory
+2) object storage, works on top of raw storage, provides interface to store object of certain type, has it's own addressing
+3) sequence of objects, works on top of object storage to group objects of certain type. Provides specific addressing mode to encapsulate (sequence id, index)
+4) interface for object & sequence storage provides ability to receive object's instance from serialzied data. object returned as unique_ptr, with two versions, mutable and immutable. immutable can be returned to many users, also returned when finished using by interface call to be placed in internal cache to maintain pool of preallocated/shared objects. mutable is owned by caller who is reponsible for destruction.
+5) sequence/object storage instance could be identified by sequence id/object storage id. in order to make addressing storable across different launches, we don't want to use pointer, but rather integer number, from which we can get pointer to that storage instance using StorageManager - (global?) object managing every storage instance at runtime. this allows not to load to memory unused storage instances - could be called storage index, also (de)/serializable objects that could be stored on disk
+6) challenge - de/serializing objects containing other objects - implementation defined - serialize children, store in some way in raw data, only issue if goes recursive, something to keep us from infinite looping.
+
+/*
+use case
+
+ObjectAddress copyObject(ObjectAddress<T> oa){
+	auto obj = oa.getObject();
+	oa.releaseObject(obj);
+	//or
+	storageManager.releaseObject(obj);
+
+	auto obj2 = oa.getMutableObject();
+
+	auto oa2 = storageManager.putObject(obj2);
+	return oa2;
+}
+
+ObjectAddress copyObject2(ObjectSequenceAddress<T> osa){
+	auto obj = osa.getObject();?????????
+	oa.releaseObject(obj);
+	//or
+	storageManager.releaseObject(obj);
+
+	auto obj2 = oa.getMutableObject();
+
+	auto oa2 = storageManager.putObject(obj2);
+	return oa2;
+}
+*/

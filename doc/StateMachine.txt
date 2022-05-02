@@ -1,0 +1,9 @@
+class StateMachine{
+	class Event{
+
+	};
+};
+
+
+each class shall implement StateMachine interface, as well as provide its own Event list, and provide transformation rules from commands/messages to events
+Events from one state machine could generate events for events in another ones, making two or more FSMs somehow bound together

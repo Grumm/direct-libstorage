@@ -1,21 +1,18 @@
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20.0)
+project(libstorage VERSION 0.1.0)
 
-project(oa VERSION 1.0 LANGUAGES CXX)
+set(LIBSTORAGE_HEADERS_DIR ${PROJECT_SOURCE_DIR}/include)
 
-FIND_PACKAGE( Boost 1.60 COMPONENTS program_options program_options date_time REQUIRED )
-INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED on)
+set(CMAKE_EXPORT_COMPILE_COMMANDS true)
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wfatal-errors")
 
-ADD_EXECUTABLE(oa main.cpp TradingAlgo.cpp algo1.cpp algo2.cpp)
+set(CPACK_PROJECT_NAME ${PROJECT_NAME})
+set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
+include(CPack)
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Debug)
-endif()
+include_directories(${LIBSTORAGE_HEADERS_DIR})
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wno-unused")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
-
-set_property(TARGET oa PROPERTY CXX_STANDARD 17)
-target_include_directories(oa PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-TARGET_LINK_LIBRARIES(oa LINK_PUBLIC ${Boost_LIBRARIES})
+add_subdirectory(test)
+add_subdirectory(src)
