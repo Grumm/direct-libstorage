@@ -1,3 +1,4 @@
 build
 *.exe
+.vscode
 libstorage.code-workspace
