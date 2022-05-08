@@ -1,6 +1,7 @@
 
 #include <cstdio>
 #include <memory>
+#include <filesystem>
 
 #include <storage/SimpleStorage.hpp>
 
@@ -12,9 +13,9 @@ const std::string filename{"/tmp/FileRMA.test"};
 constexpr size_t FILESIZE = 12;
 
 TEST(SimpleStorage, ReadWriteSimple){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
-	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
+	std::unique_ptr<DataStorage> storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 	auto address = storage->get_random_address(256);
 	EXPECT_NE(address.addr, (uint64_t)0UL);
@@ -43,9 +44,9 @@ TEST(SimpleStorage, ReadWriteSimple){
 }
 
 TEST(SimpleStorage, ReadWriteSimpleBuffer){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
-	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
+	auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 	auto address = storage->get_random_address(256);
 	EXPECT_NE(address.addr, (uint64_t)0UL);
@@ -65,9 +66,9 @@ TEST(SimpleStorage, ReadWriteSimpleBuffer){
 }
 
 TEST(SimpleStorage, ReadIncorrectAddress){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
-	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
+	auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 	auto address = storage->get_random_address(256);
 	EXPECT_NE(address.addr, (uint64_t)0UL);
@@ -84,9 +85,9 @@ TEST(SimpleStorage, ReadIncorrectAddress){
 }
 
 TEST(SimpleStorage, ReadWriteMultipleBuffers){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
-	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
+	auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 	auto address1 = storage->get_random_address(100);
 	EXPECT_NE(address1.addr, (uint64_t)0UL);
@@ -132,9 +133,9 @@ TEST(SimpleStorage, ReadWriteMultipleBuffers){
 }
 
 TEST(SimpleStorage, ReadWriteEraseSimple){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
-	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
+	auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 	auto address = storage->get_random_address(256);
 	EXPECT_NE(address.addr, (uint64_t)0UL);
@@ -152,9 +153,9 @@ TEST(SimpleStorage, ReadWriteEraseSimple){
 }
 
 TEST(SimpleStorage, ReadWriteEraseMultipleAddresses){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
-	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
+	auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 	auto address1 = storage->get_random_address(100);
 	EXPECT_NE(address1.addr, (uint64_t)0UL);
@@ -205,9 +206,9 @@ TEST(SimpleStorage, ReadWriteEraseMultipleAddresses){
 }
 
 TEST(SimpleStorage, ReadWriteEraseMultipleAddressesOverwrite){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
-	std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
+	auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 	auto address1 = storage->get_random_address(100);
 	EXPECT_NE(address1.addr, (uint64_t)0UL);
@@ -262,12 +263,12 @@ TEST(SimpleStorage, ReadWriteEraseMultipleAddressesOverwrite){
 }
 
 TEST(SimpleStorage, SerializeDeserializeSimple){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
 
 	StorageAddress address1;
 	{
-		std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+		auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 		address1 = storage->get_random_address(100);
 		EXPECT_NE(address1.addr, (uint64_t)0UL);
@@ -286,7 +287,7 @@ TEST(SimpleStorage, SerializeDeserializeSimple){
 		EXPECT_EQ(Result::Success, storage->commit(readb1));
 	}
 	{
-		std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+		auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){
@@ -297,12 +298,12 @@ TEST(SimpleStorage, SerializeDeserializeSimple){
 }
 
 TEST(SimpleStorage, SerializeDeserializeMultipleAddresses){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
 
 	StorageAddress address1, address2, address3;
 	{
-		std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+		auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 		address1 = storage->get_random_address(100);
 		EXPECT_NE(address1.addr, (uint64_t)0UL);
@@ -347,7 +348,7 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddresses){
 		EXPECT_EQ(Result::Success, storage->commit(readb3));
 	}
 	{
-		std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+		auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 		EXPECT_THROW(storage->readb(address2), std::logic_error);
 
@@ -366,12 +367,12 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddresses){
 }
 
 TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
-	::remove(filename.c_str());
-	std::unique_ptr<RMAInterface> rma{new FileRMA<FILESIZE>(filename)};
+	std::filesystem::remove(std::filesystem::path{filename});
+    auto rma = std::make_unique<FileRMA<FILESIZE>>(filename);
 
 	StorageAddress address1, address2, address3, address4, address5;
 	{
-		std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+		auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 		address1 = storage->get_random_address(100);
 		EXPECT_NE(address1.addr, (uint64_t)0UL);
@@ -416,7 +417,7 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
 		EXPECT_EQ(Result::Success, storage->commit(readb3));
 	}
 	{
-		std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+		auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 		EXPECT_THROW(storage->readb(address2), std::logic_error);
 
@@ -460,7 +461,7 @@ TEST(SimpleStorage, SerializeDeserializeMultipleAddressesTwoTimes){
 		EXPECT_THROW(storage->readb(address3), std::logic_error);
 	}
 	{
-		std::unique_ptr<DataStorage> storage{new SimpleStorage{*rma.get()}};
+		auto storage = std::make_unique<SimpleFileStorage<FILESIZE>>(*rma.get());
 
 		StorageBufferRO readb1 = storage->readb(address1);
 		for(size_t i = 0; i < 100; i++){

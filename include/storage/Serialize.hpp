@@ -1,6 +1,7 @@
 #pragma once
 
 #include <type_traits>
+#include <memory>
 #include <cstring>
 
 #include <storage/Utils.hpp>
@@ -16,12 +17,13 @@ class ObjectAddress{
 
 };
 
+template<class T, class U>
+concept Derived = std::is_base_of<U, T>::value;
+
 template<typename T, typename U>
-concept CStorage = std::is_same_v<T, ObjectStorage<U>> || std::is_same_v<T, DataStorage>;
+concept CStorage = std::is_same_v<T, ObjectStorage<U>> || std::is_same_v<T, DataStorage> || std::is_base_of_v<DataStorage, T>;
 template<typename T>
 concept CStorageAddress = std::is_same_v<T, StorageAddress> || std::is_same_v<T, ObjectAddress>;
-//template<class T, class U>
-//concept Derived = std::is_base_of<U, T>::value;
 template<typename T>
 concept TupleLike = requires (T a) {
     std::tuple_size<T>::value;
@@ -147,7 +149,8 @@ public:
     }
     //virtual ~Serialize(){}
 #if 0
-    Result serializeImpl(const StorageBuffer<> &buffer) const { throw std::bad_function_call("Not implemented"); }
+    Result serializeImpl(StorageBuffer<> &buffer) const { throw std::bad_function_call("Not implemented"); }
+	template<typename T>
     static T deserializeImpl(const StorageBufferRO<> &buffer) { throw std::bad_function_call("Not implemented"); }
     size_t getSizeImpl() const { throw std::bad_function_call("Not implemented"); }
 #endif
@@ -335,13 +338,31 @@ public:
     const std::tuple<TArgs...> &getObj() const { return obj; }
 };
 
+template<CSerializable T>
+class BuiltinSerializeImpl<std::unique_ptr<T>>{
+public:
+    BuiltinSerializeImpl(const std::unique_ptr<T> &obj) {}
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        return Result::Success;
+    }
+    static BuiltinSerializeImpl<std::unique_ptr<T>> deserializeImpl(const StorageBufferRO<> &buffer) {
+        return BuiltinSerializeImpl{std::unique_ptr<T>{}};
+    }
+    size_t getSizeImpl() const {
+        return 0;
+    }
+    const std::unique_ptr<T> &getObj() const { return std::unique_ptr<T>{}; }
+};
+
 #if 0
-template<CSerializable Key, CSerializable Val>
+template<typename T>
+concept ElementIterable = std::ranges::range<std::ranges::range_value_t<T>>;
+template<CSerializable T, ElementIterable<T> U>
 class BuiltinSerializeImpl<std::map<Key, Val>>{
     const std::string obj;
 public:
     BuiltinSerializeImpl(const std::string &obj): obj(obj) {}
-    Result serializeImpl(const StorageBuffer<> &buffer) const {
+    Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
         char *s = buffer.get<char>();
         std::strncpy(s, obj.c_str(), buffer.size());

@@ -6,8 +6,11 @@
 
 //generic virtual file system
 struct StorageAddress{
-	uint64_t addr{-1ULL};
+	static constexpr uint64_t NULL_ADDR = -1ULL;
+	uint64_t addr{NULL_ADDR};
 	size_t size{0};
+
+	bool is_null() const { return addr == NULL_ADDR; }
 };
 
 template<typename T>

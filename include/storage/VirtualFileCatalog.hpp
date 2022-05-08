@@ -86,7 +86,7 @@ public:
         }
         return std::make_pair(true, it->second);
     }
-    std::pair<bool, Value &> getRef(const Keys&... keys){
+    Value &getRef(const Keys&... keys){
         auto it = m.find(std::make_tuple(keys...));
         if(it == m.end()){
             return std::make_pair(false, Value{});
@@ -97,7 +97,7 @@ public:
         m.erase(std::make_tuple(keys...));
     }
     //CSerializableImpl
-    Result serializeImpl(const StorageBuffer<> &buffer) const {
+    Result serializeImpl(StorageBuffer<> &buffer) const {
 		size_t offset = 0;
         auto m_size = m.size();
 		auto buf = buffer.offset_advance(offset, szeimpl::size(m_size));
@@ -180,7 +180,7 @@ public:
         mlkm.del(keys...);
     }
 
-    Result serializeImpl(const StorageBuffer<> &buffer) const {
+    Result serializeImpl(StorageBuffer<> &buffer) const {
         return mlkm.serializeImpl(buffer);
     }
     static VirtualFileCatalog<Value, Keys...>
@@ -188,7 +188,7 @@ public:
             //DataStorage &ds = StorageManager::get(id); <- deserialize some id(index, filepath, memaddr, etc.), if none, create new via 
             //StorageManager::create(id);
             auto *rma = new FileRMA<20>("/tmp/unknown.txt");
-            auto *ss = SimpleStorage{*rma};
+            auto *ss = new SimpleFileStorage<20>{*rma};
             return VirtualFileCatalog<Value, Keys...>{*ss};
             //return VirtualFileCatalog{DataStorage?}; //TODO
     }

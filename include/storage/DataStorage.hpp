@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include <storage/Utils.hpp>
 #include <storage/StorageUtils.hpp>
 
@@ -55,6 +57,13 @@ public:
 	virtual Stat stat(const StorageAddress &addr) = 0;
 
 	virtual ~DataStorage(){}
+
+    virtual Result serializeImpl(StorageBuffer<> &buffer) const = 0;
+	template<typename T>
+    static T deserializeImpl(const StorageBufferRO<> &buffer) {
+		throw std::bad_function_call("Not implemented. Deserializing abstract class");
+	}
+    virtual size_t getSizeImpl() const = 0;
 };
 
 struct StaticHeader{
