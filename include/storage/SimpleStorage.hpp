@@ -3,10 +3,9 @@
 #include <map>
 
 #include <storage/Utils.hpp>
-#include <storage/RandomMemoryAccess.hpp>
+#include <storage/SerializeImpl.hpp>
 #include <storage/DataStorage.hpp>
-#include <storage/Serialize.hpp>
-
+#include <storage/RandomMemoryAccess.hpp>
 
 /*
     get address -> alloc_unmapped() -> add to unmapped
@@ -253,11 +252,12 @@ class SimpleStorage: public DataStorage{
             //new file!
             metadata.magic = MAGIC;
             metadata.va_addr = metadata.ra.get_random_address(VirtAddressMapping::DEFAULT_SIZE);
-            uint64_t metadata_addr = metadata.ra.get_random_address(sizeof(FileMetadata));
+            uint64_t metadata_addr = metadata.ra.get_random_address(szeimpl::size(metadata));
             //first mapping for the beginning of the file
-            auto offset = mapping.alloc(metadata_addr, sizeof(FileMetadata));
+            auto offset = mapping.alloc(metadata_addr, szeimpl::size(metadata));
             ASSERT_ON(offset != 0);
             metadata.static_addr = get_random_address(static_size);
+            initialize_zero(*this, metadata.static_addr);
         } else {
             metadata = *fm;
             ASSERT_ON(metadata.static_addr.size < static_size);
@@ -268,9 +268,15 @@ class SimpleStorage: public DataStorage{
     }
 public:
     SimpleStorage(R &rma, size_t static_size): rma(rma) {
+        if(HaveStorageManager()){
+            GetGlobalUniqueIDStorage().registerUniqueInstance<SimpleStorage<R>>(*this);
+        }
         init_simple_storage(static_size);
     }
     SimpleStorage(R &rma): rma(rma) {
+        if(HaveStorageManager()){
+            GetGlobalUniqueIDStorage().registerUniqueInstance<SimpleStorage<R>>(*this);
+        }
         init_simple_storage(sizeof(StaticHeader));
     }
 

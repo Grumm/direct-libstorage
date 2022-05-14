@@ -10,7 +10,7 @@
 
 #include <storage/Utils.hpp>
 #include <storage/StorageUtils.hpp>
-#include <storage/Serialize.hpp>
+#include <storage/SerializeImpl.hpp>
 
 #ifndef MADV_HUGEPAGE
 //#warning "Hugepages not supported. Using compatible mode"

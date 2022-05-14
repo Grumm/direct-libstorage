@@ -1,9 +1,96 @@
 #pragma once
-#if 0
+
+#include <type_traits>
+#include <memory>
+#include <cstring>
+#include <array>
+
+#include <storage/Utils.hpp>
+#include <storage/StorageUtils.hpp>
+
+//#include <ObjectStorage.hpp>
+
+template<typename T>
+class ObjectStorage{
+
+};
+class ObjectAddress{
+
+};
+
+class DataStorage;
+class StorageAddress;
+
+template<class T, class U>
+concept Derived = std::is_base_of<U, T>::value;
+
+template<typename T, typename U>
+concept CStorage = std::is_same_v<T, ObjectStorage<U>> || std::is_same_v<T, DataStorage> || std::is_base_of_v<DataStorage, T>;
+template<typename T>
+concept CStorageAddress = std::is_same_v<T, StorageAddress> || std::is_same_v<T, ObjectAddress>;
+template<typename T>
+concept TupleLike = requires (T a) {
+    std::tuple_size<T>::value;
+    std::get<0>(a);
+};
+template<typename T>
+concept CSerializableImpl = requires(const T &t, StorageBuffer<> &buffer,
+                                     const StorageBufferRO<> &ro_buffer){
+    { t.getSizeImpl() } -> std::convertible_to<std::size_t>;
+    { t.serializeImpl(buffer) } -> std::same_as<Result>;
+    { T::deserializeImpl(ro_buffer) } -> std::same_as<T>;
+};
 template<typename T, typename ...U>
-concept CBuiltinSerializable = std::is_same_v<T, std::string>
+concept CBuiltinSerializable = (std::is_same_v<T, std::string>
                                 || TupleLike<T>
-                                || std::is_trivially_copyable_v<T>;
+                                || std::is_trivially_copyable_v<T>) && !CSerializableImpl<T>;
+template<typename T>
+concept CSerializable = CBuiltinSerializable<T> || CSerializableImpl<T>;
+
+/****************************************************/
+template<typename T>
+class BuiltinSerializeImpl;
+
+template<typename T>
+using base_type = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
+
+namespace szeimpl{
+
+template<CSerializableImpl T>
+size_t size(const T &t){
+    return t.getSizeImpl();
+}
+
+template<CBuiltinSerializable T>
+size_t size(const T &t){
+    return BuiltinSerializeImpl<T>{t}.getSizeImpl();
+}
+
+template<CSerializableImpl T, typename U>
+constexpr Result s(const T &t, StorageBuffer<U> &buffer){
+    return t.template serializeImpl(buffer.template cast<void>());
+}
+
+template<CBuiltinSerializable T, typename U>
+constexpr Result s(const T &t, StorageBuffer<U> &buffer){
+    return BuiltinSerializeImpl<std::remove_cvref_t<T>>{t}.template serializeImpl(buffer.template cast<void>());
+}
+
+template<CSerializableImpl T, typename U>
+T d(const StorageBufferRO<U> &buffer) {
+    return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>());
+}
+
+template<CBuiltinSerializable T, typename U>
+T d(const StorageBufferRO<U> &buffer) {
+    return BuiltinSerializeImpl<std::remove_cvref_t<T>>::
+        deserializeImpl(buffer.template cast<void>()).getObj();
+}
+
+}
+
+/****************************************************/
+
 template<typename T>
 class BuiltinSerializeImpl{
 public:
@@ -55,24 +142,35 @@ public:
     const std::string &getObj() const { return obj; }
 };
 
+template <typename T>
+class BSIWrapper2{
+    const T *obj;
+    std::array<uint8_t, sizeof(T)> data;
+};
+
 template<CSerializable F, CSerializable S>
 class BuiltinSerializeImpl<std::pair<F, S>>{
-    const std::pair<F, S> obj;
+    using T = std::pair<F, S>;
+    const T *obj;
+    std::array<uint8_t, sizeof(T)> data;
 public:
-    BuiltinSerializeImpl(const std::pair<F, S> &obj): obj(obj) {}
+    BuiltinSerializeImpl(const T &obj): obj(&obj) {}
+    BuiltinSerializeImpl(const F &f, const S &s) {
+        obj = new (data.data()) T(f, s);
+    }
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
         Result res = Result::Success;
 
         size_t offset = 0;
-        StorageBuffer buf = buffer.offset_advance(offset, szeimpl::size(obj.first));
-        res = szeimpl::s(obj.first, buf);
-        buf = buffer.offset_advance(offset, szeimpl::size(obj.second));
-        res = szeimpl::s(obj.second, buf);
+        StorageBuffer buf = buffer.offset_advance(offset, szeimpl::size(obj->first));
+        res = szeimpl::s(obj->first, buf);
+        buf = buffer.offset_advance(offset, szeimpl::size(obj->second));
+        res = szeimpl::s(obj->second, buf);
 
         return res;
     }
-    static BuiltinSerializeImpl<std::pair<F, S>> deserializeImpl(const StorageBufferRO<> &buffer) {
+    static BuiltinSerializeImpl<T> deserializeImpl(const StorageBufferRO<> &buffer) {
         size_t offset = 0;
         StorageBufferRO buf = buffer;
         F f = szeimpl::d<F>(buf);
@@ -80,17 +178,17 @@ public:
         buf = buffer.offset(offset, buffer.size() - offset);
         S s = szeimpl::d<S>(buf);
 
-        return BuiltinSerializeImpl{std::make_pair(f, s)};
+        return BuiltinSerializeImpl{f, s};
     }
     size_t getSizeImpl() const {
         size_t sum = 0;
         std::apply([&sum](auto&&... arg){
             ((sum += szeimpl::size(arg)),
             ...);
-        }, obj);
+        }, *obj);
         return sum;
     }
-    const std::pair<F, S> &getObj() const { return obj; }
+    const T getObj() const { return *obj; }
 };
 
 template <std::size_t ... Is>
@@ -200,8 +298,6 @@ public:
     const std::unique_ptr<T> &getObj() const { return std::unique_ptr<T>{}; }
 };
 
-#endif
-
 #if 0
 template<typename T>
 concept ElementIterable = std::ranges::range<std::ranges::range_value_t<T>>;
@@ -227,3 +323,11 @@ public:
     const std::string &getObj() const { return obj; }
 };
 #endif
+
+/****************************************************/
+
+template <typename T>
+struct SerializableMap{
+    size_t size;
+    T data[0];
+};

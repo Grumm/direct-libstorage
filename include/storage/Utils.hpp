@@ -8,7 +8,7 @@
 
 #define LOG(LEVEL, str, ...) do{ \
 		auto location = std::source_location::current(); \
-		fprintf(stderr, "[%s %s %s:%d '%s'] " str "\n", \
+		fprintf(stderr, (std::string{"[%s %s %s:%d '%s'] "} + str + std::string{"\n"}).c_str(), \
 			#LEVEL, __TIME__, std::filesystem::path(location.file_name()).filename().c_str(), \
 			location.line(), location.function_name(), ##__VA_ARGS__); \
 	}while(0)
@@ -23,7 +23,7 @@
 #else
 #define ASSERT_ON_MSG(cond, msg) do{ \
 		if(cond) [[unlikely]]{ \
-			LOG_ASSERT("Assert " msg " " #cond); \
+			LOG_ASSERT(std::string{"Assert "} + std::string{msg} + std::string{" "} + std::string{#cond}); \
 			throw std::logic_error("Assert " #cond); \
 		} \
 	}while(0)

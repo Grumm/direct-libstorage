@@ -1,5 +1,73 @@
-#include <iostream>
+#include <memory>
+#include <string>
+#include <filesystem>
 
-void say_hello(){
-    std::cout << "Hello, from libstorage!\n";
+#include <storage/Storage.hpp>
+
+std::unique_ptr<StorageManager> g_storage_manager;
+
+//generate filename based on argv[0]
+std::string generate_filename_from_argv(std::string execname){
+    std::filesystem::path path{execname};
+    path = std::filesystem::absolute(path);
+    execname = path.string();
+    std::replace(execname.begin(), execname.end(), '/', '_');
+    std::replace(execname.begin(), execname.end(), '\\', '_');
+    std::replace(execname.begin(), execname.end(), ':', '_');
+    std::replace(execname.begin(), execname.end(), '.', '_');
+    return execname;
+}
+
+static void init_libstorage(std::filesystem::path path){
+    ASSERT_ON(!path.has_filename());
+    auto filename = path.filename();
+    path.remove_filename();
+    std::error_code ec;
+    std::filesystem::create_directories(path, ec);
+    ASSERT_ON_MSG(ec, ec.message());
+    path.replace_filename(filename);
+    g_storage_manager.reset(new StorageManager(path.string()));
+    g_storage_manager->init();
+}
+
+void InitLibStorage([[maybe_unused]] int argc, const char *argv[]){
+    static const std::string DEFAULT_PATH{"~/.libstorage/"};
+    std::string filename = generate_filename_from_argv(std::string{argv[0]});
+    std::filesystem::path path{DEFAULT_PATH};
+    path.replace_filename(filename);
+    path = std::filesystem::absolute(path);
+
+    init_libstorage(path);
+}
+
+void InitLibStorage(const std::string &_path, const std::string &filename){
+    std::filesystem::path path{_path};
+    path = std::filesystem::absolute(path);
+    path.replace_filename(filename);
+
+    init_libstorage(path);
+}
+
+bool HaveStorageManager(){
+    return g_storage_manager.get() != nullptr;
+}
+StorageManager &GetStorageManager(){
+    ASSERT_ON_MSG(!HaveStorageManager(), "Uninitialzied Storage");
+    return *g_storage_manager.get();
+}
+
+DataStorage &GetGlobalMetadataStorage(){
+    return GetStorageManager().getStorage();
+}
+
+UniqueIDStorage<DataStorage> &GetGlobalUniqueIDStorage(){
+    return GetStorageManager().getUIDStorage();
+}
+
+uint32_t GenerateGlobalUniqueID(){
+    if(HaveStorageManager()){
+        return GetGlobalUniqueIDStorage().generateID();
+    } else {
+        return 0; //Global Metadata
+    }
 }

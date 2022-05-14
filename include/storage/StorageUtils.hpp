@@ -5,6 +5,13 @@
 #include <storage/Utils.hpp>
 
 //generic virtual file system
+
+template<typename T>
+class StorageBufferRO;
+
+template<typename T>
+class StorageBuffer;
+
 struct StorageAddress{
 	static constexpr uint64_t NULL_ADDR = -1ULL;
 	uint64_t addr{NULL_ADDR};
@@ -12,12 +19,6 @@ struct StorageAddress{
 
 	bool is_null() const { return addr == NULL_ADDR; }
 };
-
-template<typename T>
-class StorageBufferRO;
-
-template<typename T>
-class StorageBuffer;
 
 template<typename T = void>
 class StorageBuffer{

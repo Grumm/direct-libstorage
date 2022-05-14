@@ -1,11 +1,14 @@
 #pragma once
 
+#include <type_traits>
 #include <functional>
 
 #include <storage/Utils.hpp>
 #include <storage/StorageUtils.hpp>
+#include <storage/SerializeImpl.hpp>
+#include <storage/UniqueID.hpp>
 
-class DataStorage{
+class DataStorage: public UniqueIDInstance {
 public:
 	struct Stat{
 		//TODO
@@ -56,6 +59,7 @@ public:
 
 	virtual Stat stat(const StorageAddress &addr) = 0;
 
+	DataStorage(): UniqueIDInstance(GenerateGlobalUniqueID()) {}
 	virtual ~DataStorage(){}
 
     virtual Result serializeImpl(StorageBuffer<> &buffer) const = 0;
@@ -65,6 +69,13 @@ public:
 	}
     virtual size_t getSizeImpl() const = 0;
 };
+
+//TODO reorganize
+static inline Result initialize_zero(DataStorage &storage, const StorageAddress &addr){
+	auto buf = storage.writeb(addr);
+	memset(buf.get(), 0, buf.allocated());
+	return storage.commit(buf);
+}
 
 struct StaticHeader{
 	uint64_t magic;

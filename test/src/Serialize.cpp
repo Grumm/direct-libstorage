@@ -2,9 +2,9 @@
 #include <cstdio>
 #include <memory>
 
-#include <storage/Serialize.hpp>
-#include <storage/SimpleStorage.hpp>
 #include <storage/RandomMemoryAccess.hpp>
+#include <storage/SimpleStorage.hpp>
+#include <storage/Serialize.hpp>
 
 #include "gtest/gtest.h"
 
@@ -38,6 +38,14 @@ public:
     size_t getSizeImpl() const {
         return sizeof(int) * 2;
     }
+
+    bool operator==(const SerializableImplTest &other) const{
+        bool ret = true;
+        ret = ret && (m.size() == other.m.size());
+        ret = ret && (m.begin()->first == other.m.begin()->first);
+        ret = ret && (m.begin()->second == other.m.begin()->second);
+        return ret;
+    }
 };
 
 const std::string filename{"/tmp/FileRMA.test"};
@@ -49,7 +57,7 @@ TEST(SerializeTest, SimpleSerializeDeserialize){
     SerializableImplTest si{1, 2};
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), si);
     SerializableImplTest si_res = deserialize<SerializableImplTest>(*storage.get(), addr);
-    ASSERT_EQ(si.m[1], si_res.m[1]);
+    ASSERT_EQ(si, si_res);
 }
 
 TEST(SerializeTest, SimpleOverwrite){
@@ -61,11 +69,11 @@ TEST(SerializeTest, SimpleOverwrite){
     StorageAddress addr;
     serialize<StorageAddress>(*storage.get(), si2, addr);
     auto si2_res = deserialize_ptr<SerializableImplTest>(*storage.get(), addr);
-    ASSERT_EQ(si2.m[3], si2_res->m[3]);
+    ASSERT_EQ(si2, *si2_res.get());
     //overwrite
     serialize<StorageAddress>(*storage.get(), si, addr);
     auto si2_res2 = deserialize<SerializableImplTest>(*storage.get(), addr);
-    ASSERT_EQ(si.m[1], si2_res2.m[1]);
+    ASSERT_EQ(si, si2_res2);
 }
 
 TEST(SerializeTest, IntegralSerializeDeserialize){
@@ -136,6 +144,9 @@ struct TestPOD{
         e2,
     };
     E e;
+    bool operator==(const TestPOD &other) const{
+        return (a == other.a) && (b == other.b) && (c == other.c) && (e == other.e);
+    }
 };
 
 TEST(SerializeTest, PODSerializeDeserialize){
@@ -145,10 +156,7 @@ TEST(SerializeTest, PODSerializeDeserialize){
     TestPOD pod{6, 444444, true, TestPOD::E::e2};
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), pod);
     TestPOD pod_res = deserialize<TestPOD>(*storage.get(), addr);
-    ASSERT_EQ(pod.a, pod_res.a);
-    ASSERT_EQ(pod.b, pod_res.b);
-    ASSERT_EQ(pod.c, pod_res.c);
-    ASSERT_EQ(pod.e, pod_res.e);
+    ASSERT_EQ(pod, pod_res);
 }
 
 TEST(SerializeTest, PODOverwrite){
@@ -160,17 +168,11 @@ TEST(SerializeTest, PODOverwrite){
     StorageAddress addr;
     serialize<StorageAddress>(*storage.get(), pod1, addr);
     auto pod1_res = deserialize_ptr<TestPOD>(*storage.get(), addr);
-    ASSERT_EQ(pod1_res->a, pod1.a);
-    ASSERT_EQ(pod1_res->b, pod1.b);
-    ASSERT_EQ(pod1_res->c, pod1.c);
-    ASSERT_EQ(pod1_res->e, pod1.e);
+    ASSERT_EQ(*pod1_res.get(), pod1);
     //overwrite
     serialize<StorageAddress>(*storage.get(), pod2, addr);
     auto pod2_res = deserialize<TestPOD>(*storage.get(), addr);
-    ASSERT_EQ(pod2.a, pod2_res.a);
-    ASSERT_EQ(pod2.b, pod2_res.b);
-    ASSERT_EQ(pod2.c, pod2_res.c);
-    ASSERT_EQ(pod2.e, pod2_res.e);
+    ASSERT_EQ(pod2, pod2_res);
 }
 
 TEST(SerializeTest, SimplePairSerializeDeserialize){
@@ -198,13 +200,10 @@ TEST(SerializeTest, ComplexPairSerializeDeserialize){
     auto &str_res = pair_res.first.second;
     auto &u64_res = pair_res.second.first;
     auto &si_res = pair_res.second.second;
-    ASSERT_EQ(pod_res.a, pod1.a);
-    ASSERT_EQ(pod_res.b, pod1.b);
-    ASSERT_EQ(pod_res.c, pod1.c);
-    ASSERT_EQ(pod_res.e, pod1.e);
+    ASSERT_EQ(pod_res, pod1);
     ASSERT_EQ(str_res, "t1anyways");
     ASSERT_EQ(u64_res, 111UL);
-    ASSERT_EQ(si_res.m[13], -2);
+    ASSERT_EQ(si_res, si1);
 }
 
 TEST(SerializeTest, SimpleTupleSerializeDeserialize){
@@ -233,10 +232,7 @@ TEST(SerializeTest, ComplexTupleSerializeDeserialize){
     ASSERT_EQ(std::get<1>(tuple_res), 0xeeef6);
     ASSERT_EQ(std::get<2>(tuple_res).first, 'W');
     auto &pod_res = std::get<2>(tuple_res).second;
-    ASSERT_EQ(pod_res.a, pod1.a);
-    ASSERT_EQ(pod_res.b, pod1.b);
-    ASSERT_EQ(pod_res.c, pod1.c);
-    ASSERT_EQ(pod_res.e, pod1.e);
+    ASSERT_EQ(pod_res, pod1);
 }
 
 }

@@ -58,8 +58,8 @@ this is a part of objectstorage class
 #include <type_traits>
 #include <map>
 
-#include <storage/Serialize.hpp>
 #include <storage/DataStorage.hpp>
+#include <storage/Serialize.hpp>
 #include <storage/RandomMemoryAccess.hpp>
 #include <storage/SimpleStorage.hpp>
 
