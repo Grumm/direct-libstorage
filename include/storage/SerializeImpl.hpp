@@ -26,6 +26,8 @@ concept Derived = std::is_base_of<U, T>::value;
 
 template<typename T, typename U>
 concept CStorage = std::is_same_v<T, ObjectStorage<U>> || std::is_same_v<T, DataStorage> || std::is_base_of_v<DataStorage, T>;
+template<typename T, typename U = void>
+concept CStorageImpl = std::is_same_v<T, ObjectStorage<U>> || (std::is_base_of_v<DataStorage, T> && !std::is_same_v<T, DataStorage>);
 template<typename T>
 concept CStorageAddress = std::is_same_v<T, StorageAddress> || std::is_same_v<T, ObjectAddress>;
 template<typename T>
@@ -33,14 +35,23 @@ concept TupleLike = requires (T a) {
     std::tuple_size<T>::value;
     std::get<0>(a);
 };
+
+template <typename>
+struct dsptr_T : std::false_type {};
+template <typename T, typename ...Args>
+struct dsptr_T<T(T::*)(const StorageBufferRO<> &, Args...)> : std::true_type {};
+template <typename T>
+concept CDeserializeImpl = dsptr_T<decltype(&T::deserializeImpl)>::value;
+
 template<typename T>
 concept CSerializableImpl = requires(const T &t, StorageBuffer<> &buffer,
                                      const StorageBufferRO<> &ro_buffer){
     { t.getSizeImpl() } -> std::convertible_to<std::size_t>;
     { t.serializeImpl(buffer) } -> std::same_as<Result>;
-    { T::deserializeImpl(ro_buffer) } -> std::same_as<T>;
+    CDeserializeImpl<T>;
+    //{ T::deserializeImpl(ro_buffer, auto...) } -> std::same_as<T>;
 };
-template<typename T, typename ...U>
+template<typename T>
 concept CBuiltinSerializable = (std::is_same_v<T, std::string>
                                 || TupleLike<T>
                                 || std::is_trivially_copyable_v<T>) && !CSerializableImpl<T>;
@@ -76,15 +87,15 @@ constexpr Result s(const T &t, StorageBuffer<U> &buffer){
     return BuiltinSerializeImpl<std::remove_cvref_t<T>>{t}.template serializeImpl(buffer.template cast<void>());
 }
 
-template<CSerializableImpl T, typename U>
-T d(const StorageBufferRO<U> &buffer) {
-    return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>());
+template<CSerializableImpl T, typename U, typename ...Args>
+T d(const StorageBufferRO<U> &buffer, Args&&... args) {
+    return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...);
 }
 
-template<CBuiltinSerializable T, typename U>
-T d(const StorageBufferRO<U> &buffer) {
+template<CBuiltinSerializable T, typename U, typename ...Args>
+T d(const StorageBufferRO<U> &buffer, Args&&... args) {
     return BuiltinSerializeImpl<std::remove_cvref_t<T>>::
-        deserializeImpl(buffer.template cast<void>()).getObj();
+        deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...).getObj();
 }
 
 }

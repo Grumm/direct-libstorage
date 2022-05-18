@@ -37,9 +37,6 @@ public:
 #include <storage/RandomMemoryAccess.hpp>
 #include <storage/SimpleStorage.hpp>
 
-template<typename T>
-class UniqueIDStorage;
-
 class StorageManager {
     static constexpr uint32_t FILESIZE = 24; //16MB
     FileRMA<FILESIZE> rma;
@@ -75,7 +72,7 @@ public:
         metadata.init(storage);
     }
     void init(){
-        auto ptr = deserialize_ptr<UniqueIDStorage<DataStorage>>(storage, metadata.uid);
+        auto ptr = deserialize_ptr<UniqueIDStorage<DataStorage>>(storage, metadata.uid, storage);
         uid.swap(ptr);
     }
     SimpleFileStorage<FILESIZE> &getStorage() { return storage; }

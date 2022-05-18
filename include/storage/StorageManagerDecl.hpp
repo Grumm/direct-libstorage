@@ -1,10 +1,10 @@
 #pragma once
 
 #include <string>
-class StorageManager;
-class DataStorage;
-template <typename T>
-class UniqueIDStorage;
+
+#include <storage/UniqueID.hpp>
+#include <storage/DataStorage.hpp>
+#include <storage/StorageManager.hpp>
 
 extern StorageManager &GetStorageManager();
 extern DataStorage &GetGlobalMetadataStorage();

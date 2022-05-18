@@ -62,6 +62,8 @@ this is a part of objectstorage class
 #include <storage/Serialize.hpp>
 #include <storage/RandomMemoryAccess.hpp>
 #include <storage/SimpleStorage.hpp>
+#include <storage/StorageManager.hpp>
+#include <storage/StorageManagerDecl.hpp>
 
 template <CSerializable ...Keys>
 using MultiLevelKey = std::tuple<Keys...>;
@@ -134,10 +136,11 @@ public:
     }
 };
 
-template <CSerializable Value, CSerializable ...Keys>
+//TODO add T for specialization of DataStorage? concept CDataStorageDerived?
+template <CStorageImpl Storage, CSerializable Value, CSerializable ...Keys>
     requires std::is_default_constructible_v<Value>
 class VirtualFileCatalog{
-    DataStorage &storage;
+    Storage &storage;
     StorageAddress static_header_address;
     StorageBuffer<> static_header_buffer;
     StaticHeader *static_header;
@@ -148,15 +151,15 @@ class VirtualFileCatalog{
     static constexpr size_t VFC_MAGIC = 0x5544F79A;
     static constexpr size_t DEFAULT_ALLOC_SIZE = 1024;
 public:
-    VirtualFileCatalog(DataStorage &storage):
+    VirtualFileCatalog(Storage &storage):
         storage(storage),
-        static_header_address(storage.get_static_section()),
-        static_header_buffer(storage.writeb(static_header_address)),
+        static_header_address(storage.template get_static_section()),
+        static_header_buffer(storage.template writeb(static_header_address)),
         static_header(static_cast<StaticHeader *>(static_header_buffer.data)) {
         if(static_header->magic != VFC_MAGIC){
             //new
             static_header->magic = VFC_MAGIC;
-            static_header->address = storage.get_random_address(DEFAULT_ALLOC_SIZE);
+            static_header->address = storage.template get_random_address(DEFAULT_ALLOC_SIZE);
         } else {
             //deserialize mlkm
             mlkm = deserialize<MLKM>(storage, static_header->address);
@@ -164,7 +167,7 @@ public:
     }
     ~VirtualFileCatalog(){
         serialize(storage, mlkm, static_header->address);
-        storage.commit(static_header_buffer);
+        storage.template commit(static_header_buffer);
     }
 
     Result add(const Keys&... keys, const Value &value){
@@ -183,13 +186,22 @@ public:
     Result serializeImpl(StorageBuffer<> &buffer) const {
         return mlkm.serializeImpl(buffer);
     }
-    static VirtualFileCatalog<Value, Keys...>
+    static VirtualFileCatalog<Storage, Value, Keys...>
         deserializeImpl(const StorageBufferRO<> &buffer) {
+            ASSERT_ON(!HaveStorageManager());
+            auto &sm_ds = GetGlobalMetadataStorage();
+            
+            size_t offset = 0;
+            auto buf = buffer;
+            auto id = szeimpl::d<uint32_t>(buf);
+            //buf = buffer.advance_offset(offset, szeimpl::size(id));
+
+            auto &uids = GetGlobalUniqueIDStorage();
+            auto &ds = uids.getInstance<Storage>(id);
+
             //DataStorage &ds = StorageManager::get(id); <- deserialize some id(index, filepath, memaddr, etc.), if none, create new via 
             //StorageManager::create(id);
-            auto *rma = new FileRMA<20>("/tmp/unknown.txt");
-            auto *ss = new SimpleFileStorage<20>{*rma};
-            return VirtualFileCatalog<Value, Keys...>{*ss};
+            return VirtualFileCatalog<Value, Keys...>{ds};
             //return VirtualFileCatalog{DataStorage?}; //TODO
     }
     size_t getSizeImpl() const {

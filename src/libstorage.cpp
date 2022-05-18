@@ -68,6 +68,6 @@ uint32_t GenerateGlobalUniqueID(){
     if(HaveStorageManager()){
         return GetGlobalUniqueIDStorage().generateID();
     } else {
-        return 0; //Global Metadata
+        return UniqueIDStorage<DataStorage>::UNKNOWN_ID; //Global Metadata
     }
 }

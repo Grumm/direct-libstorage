@@ -267,16 +267,10 @@ class SimpleStorage: public DataStorage{
         }
     }
 public:
-    SimpleStorage(R &rma, size_t static_size): rma(rma) {
-        if(HaveStorageManager()){
-            GetGlobalUniqueIDStorage().registerUniqueInstance<SimpleStorage<R>>(*this);
-        }
+    SimpleStorage(R &rma, size_t static_size, uint32_t id): DataStorage(id), rma(rma) {
         init_simple_storage(static_size);
     }
-    SimpleStorage(R &rma): rma(rma) {
-        if(HaveStorageManager()){
-            GetGlobalUniqueIDStorage().registerUniqueInstance<SimpleStorage<R>>(*this);
-        }
+    SimpleStorage(R &rma, uint32_t id = 0): DataStorage(id), rma(rma) {
         init_simple_storage(sizeof(StaticHeader));
     }
 

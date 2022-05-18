@@ -59,7 +59,12 @@ public:
 
 	virtual Stat stat(const StorageAddress &addr) = 0;
 
-	DataStorage(): UniqueIDInstance(GenerateGlobalUniqueID()) {}
+	DataStorage(uint32_t id): UniqueIDInstance(id) {
+        /*	DataStorage(): UniqueIDInstance(GenerateGlobalUniqueID()) {}
+		if(HaveStorageManager()){
+            GetGlobalUniqueIDStorage().registerInstance<DataStorage>(*this);
+        }*/
+	}
 	virtual ~DataStorage(){}
 
     virtual Result serializeImpl(StorageBuffer<> &buffer) const = 0;

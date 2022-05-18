@@ -5,10 +5,10 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <functional>
 
 #include <storage/StorageUtils.hpp>
 #include <storage/SerializeImpl.hpp>
-#include <storage/StorageManagerDecl.hpp>
 
 enum class UniqueIDName{
     Instance,
@@ -20,26 +20,36 @@ class UniqueIDInterface{
 public:
     UniqueIDInterface(uint32_t id): id(id) {}
     uint32_t getUniqueID() const { return id; }
+    bool operator==(const UniqueIDInterface<I> &other) const{
+        return id == other.id;
+    }
+    virtual ~UniqueIDInterface(){}
 };
 
 using UniqueIDInstance = UniqueIDInterface<UniqueIDName::Instance>;
 using UniqueIDType = UniqueIDInterface<UniqueIDName::Type>;
 
+template <typename T, UniqueIDName U>
+concept CUniqueID = std::is_base_of_v<UniqueIDInterface<U>, T>;
+
 class DataStorage;
 
 /************************************************************************/
 
-template<typename T>
+template<typename T, UniqueIDName IDName = UniqueIDName::Instance>
+requires CUniqueID<T, IDName>
 class UniqueIDStorage {
     DataStorage &storage;
     std::map<uint32_t, std::pair<StorageAddress, std::unique_ptr<T>>> m;
+    //std::map<std::string, uint32_t> types;
+    //TODO use typeid(variable).name() to store actual type and perform type check
     uint32_t max_id{1};
 public:
+    static constexpr size_t UNKNOWN_ID = 0;
     UniqueIDStorage(DataStorage &storage): storage(storage) {}
 
-    template<typename U = T>
-    void registerUniqueInstance(const U &u){
-        T *t_ptr = dynamic_cast<T *>(const_cast<std::remove_const_t<U *>>(&u));
+    void registerInstance(const UniqueIDInterface<IDName> &u){
+        T *t_ptr = dynamic_cast<T *>(&(const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<decltype(u)>>>>(u)));
         ASSERT_ON(t_ptr == nullptr);
         auto id = u.UniqueIDInstance::getUniqueID();
         auto it = m.find(id);
@@ -50,9 +60,8 @@ public:
             m.emplace(id, std::make_pair(StorageAddress{}, std::unique_ptr<T>(t_ptr)));
         }
     }
-    template<typename U> //requires derived 
-    U &getUniqueInstance(const UniqueIDInstance &instance) const{
-        auto id = instance.getUniqueID();
+    template<CUniqueID<IDName> U> //requires derived 
+    U &getInstance(uint32_t id){
         auto it = m.find(id);
         ASSERT_ON(it == m.end());
         auto &t_ptr = it->second.second;
@@ -60,10 +69,19 @@ public:
             //read it from address
             auto addr = it->second.first;
             ASSERT_ON(addr.is_null());
-            auto new_ptr = deserialize_ptr<U>(storage, addr);
+            auto new_ptr = deserialize_ptr<U>(storage, addr, id);
             t_ptr.swap(new_ptr);
         }
         return *t_ptr.get();
+    }
+    void registerInstanceAddress(const UniqueIDInterface<IDName> &u, const StorageAddress &addr){
+        auto id = u.UniqueIDInstance::getUniqueID();
+        auto it = m.find(id);
+        ASSERT_ON(it == m.end());
+        it->second.first = addr;
+    }
+    void deleteInstance(const UniqueIDInterface<IDName> &u){
+        m.erase(u.getUniqueID());
     }
     uint32_t generateID(){
         ASSERT_ON(max_id == std::numeric_limits<decltype(max_id)>::max());
@@ -91,9 +109,10 @@ public:
             buf = buffer.offset_advance(offset, szeimpl::size(it_r_uptr));
             szeimpl::s(it_r_uptr, buf);
         }
+        return Result::Success;
     }
-    static UniqueIDStorage<T> deserializeImpl(const StorageBufferRO<> &buffer) {
-        UniqueIDStorage<T> uid{GetGlobalMetadataStorage()}; //GetStorageManager().getStorage()
+    static UniqueIDStorage<T> deserializeImpl(const StorageBufferRO<> &buffer, DataStorage &storage) {
+        UniqueIDStorage<T> uid{storage};
 
         size_t offset = 0;
         auto buf = buffer;
