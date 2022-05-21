@@ -55,6 +55,7 @@ for this we need to keep a string description of the objects and compare to this
 this is a part of objectstorage class
 
 */
+
 #include <type_traits>
 #include <map>
 
@@ -136,7 +137,21 @@ public:
     }
 };
 
-//TODO add T for specialization of DataStorage? concept CDataStorageDerived?
+
+/*
+VFC - per DataStorage instance - to organize all entries
+    Value - StorageAddress, ObjectAddress
+    Key - any
+VFC - Group of Storage instances - by any type
+    Value - DataStorage
+    Key - any
+    Scope - most likely global
+
+Two options: we only store VFC in DataStorage, in static section
+             or we provide StorageAddress pointing to VFC metadata, which points to actual data for VFC
+
+Required Feature - verify VFC type stored at the address
+*/
 template <CStorageImpl Storage, CSerializable Value, CSerializable ...Keys>
     requires std::is_default_constructible_v<Value>
 class VirtualFileCatalog{

@@ -23,7 +23,6 @@ public:
     bool operator==(const UniqueIDInterface<I> &other) const{
         return id == other.id;
     }
-    virtual ~UniqueIDInterface(){}
 };
 
 using UniqueIDInstance = UniqueIDInterface<UniqueIDName::Instance>;
@@ -49,7 +48,7 @@ public:
     UniqueIDStorage(DataStorage &storage): storage(storage) {}
 
     void registerInstance(const UniqueIDInterface<IDName> &u){
-        T *t_ptr = dynamic_cast<T *>(&(const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<decltype(u)>>>>(u)));
+        T *t_ptr = static_cast<T *>(&(const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<decltype(u)>>>>(u)));
         ASSERT_ON(t_ptr == nullptr);
         auto id = u.UniqueIDInstance::getUniqueID();
         auto it = m.find(id);
@@ -136,5 +135,31 @@ public:
             sum += szeimpl::size(e_r_uptr);
         }
         return sum;
+    }
+};
+
+template<typename T, UniqueIDName IDName = UniqueIDName::Instance>
+requires CUniqueID<T, IDName>
+class UniqueIDPtr{
+    T *ptr;
+public:
+    UniqueIDPtr(T *ptr): ptr(ptr) {}
+    UniqueIDPtr(T &ptr): ptr(&ptr) {}
+    T &get() const{
+        return *ptr;
+    }
+    bool is_null() const{
+        return ptr == nullptr;
+    }
+
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        return szeimpl::s(*static_cast<UniqueIDInterface<IDName> *>(ptr), buffer);
+    }
+    static UniqueIDPtr<T, IDName> deserializeImpl(const StorageBufferRO<> &buffer, UniqueIDStorage<T, IDName> &uid_storage) {
+        auto uid = szeimpl::d<UniqueIDInterface<IDName>>(buffer);
+        return UniqueIDPtr<T, IDName>{uid_storage.template getInstance<T>(uid.getUniqueID())};
+    }
+    size_t getSizeImpl() const {
+        return szeimpl::size(*static_cast<UniqueIDInterface<IDName> *>(ptr));
     }
 };

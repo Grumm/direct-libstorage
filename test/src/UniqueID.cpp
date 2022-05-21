@@ -21,7 +21,6 @@ public:
     bool operator==(const TestUIDClass &other) const{
         return a == other.a && this->getUniqueID() == other.getUniqueID();
     }
-    virtual ~TestUIDClass(){}
     Result serializeImpl(StorageBuffer<> &buffer) const {
         buffer.get<int>()[0] = a;
         return Result::Success;
@@ -61,7 +60,7 @@ TEST(UniqueIDTest, RegisterGetSerializeDeserializeUIDStorage){
         EXPECT_EQ(*tuid1, tuid1_inst);
 
         StorageAddress addr2 = serialize<StorageAddress>(*storage.get(), *tuid1);
-        uid_s.registerInstanceAddress(tuid1->getUniqueID(), addr2);
+        uid_s.registerInstanceAddress(*tuid1, addr2);
         addr1 = serialize<StorageAddress>(*storage.get(), uid_s);
     }
     {
@@ -85,7 +84,7 @@ TEST(UniqueIDTest, DeleteInstance){
         EXPECT_EQ(*tuid1, tuid1_inst);
 
         StorageAddress addr2 = serialize<StorageAddress>(*storage.get(), *tuid1);
-        uid_s.registerInstanceAddress(tuid1->getUniqueID(), addr2);
+        uid_s.registerInstanceAddress(*tuid1, addr2);
         addr1 = serialize<StorageAddress>(*storage.get(), uid_s);
 
         uid_s.deleteInstance(tuid1_inst);
@@ -95,6 +94,23 @@ TEST(UniqueIDTest, DeleteInstance){
     {
         auto uid_s = deserialize<UniqueIDStorage<TestUIDClass>>(*storage.get(), addr1, *storage.get());
         EXPECT_THROW(uid_s.getInstance<TestUIDClass>(1), std::logic_error);
+    }
+}
+
+TEST(UniqueIDTest, UniqueIDPtrSerializeDeserialize){
+    auto rma = std::make_unique<MemoryRMA<MEMORYSIZE>>();
+    auto storage = std::make_unique<SimpleRamStorage<MEMORYSIZE>>(*rma.get());
+
+    UniqueIDStorage<TestUIDClass> uid_s{*storage.get()};
+
+    UniqueIDPtr<TestUIDClass> uidptr1(new TestUIDClass{7, 1});
+    uid_s.registerInstance(uidptr1.get());
+
+    StorageAddress addr2 = serialize<StorageAddress>(*storage.get(), uidptr1);
+    {
+        auto uidptr2 = deserialize<UniqueIDPtr<TestUIDClass>>(*storage.get(), addr2, uid_s);
+        EXPECT_EQ(uidptr1.get(), uidptr2.get());
+        EXPECT_EQ(&uidptr1.get(), &uidptr2.get());
     }
 }
 
