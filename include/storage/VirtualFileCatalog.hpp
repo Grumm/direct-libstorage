@@ -57,6 +57,8 @@ this is a part of objectstorage class
 */
 
 #include <type_traits>
+#include <typeinfo>
+#include <string>
 #include <map>
 
 #include <storage/DataStorage.hpp>
@@ -170,7 +172,7 @@ public:
         storage(storage),
         static_header_address(storage.template get_static_section()),
         static_header_buffer(storage.template writeb(static_header_address)),
-        static_header(static_cast<StaticHeader *>(static_header_buffer.data)) {
+        static_header(static_header_buffer.get<StaticHeader>()) {
         if(static_header->magic != VFC_MAGIC){
             //new
             static_header->magic = VFC_MAGIC;
@@ -199,28 +201,32 @@ public:
     }
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
-        return mlkm.serializeImpl(buffer);
+        Result res = Result::Success;
+        size_t offset = 0;
+        StorageBuffer buf;
+        std::string type_name{typeid(decltype(*this)).name()};
+    
+        buf = buffer.offset_advance(offset, szeimpl::size(type_name));
+        res = szeimpl::s(type_name, buf);
+    
+        buf = buffer.offset_advance(offset, szeimpl::size(mlkm));
+        res = szeimpl::s(mlkm, buf);
+        return res;
     }
+    //pointer to other storage - on which VFC opearates on
     static VirtualFileCatalog<Storage, Value, Keys...>
-        deserializeImpl(const StorageBufferRO<> &buffer) {
-            ASSERT_ON(!HaveStorageManager());
-            auto &sm_ds = GetGlobalMetadataStorage();
-            
+        deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage) {
             size_t offset = 0;
             auto buf = buffer;
-            auto id = szeimpl::d<uint32_t>(buf);
-            //buf = buffer.advance_offset(offset, szeimpl::size(id));
-
-            auto &uids = GetGlobalUniqueIDStorage();
-            auto &ds = uids.getInstance<Storage>(id);
-
-            //DataStorage &ds = StorageManager::get(id); <- deserialize some id(index, filepath, memaddr, etc.), if none, create new via 
-            //StorageManager::create(id);
-            return VirtualFileCatalog<Value, Keys...>{ds};
-            //return VirtualFileCatalog{DataStorage?}; //TODO
+            auto type_name = szeimpl::d<std::string>(buf);
+            buf = buffer.advance_offset(offset, szeimpl::size(type_name));
+            ASSERT_ON(type_name != std::string{typeid(VirtualFileCatalog<Storage, Value, Keys...>).name()});
+            //verify type name
+            return VirtualFileCatalog<Value, Keys...>{storage};
     }
     size_t getSizeImpl() const {
-        return mlkm.getSizeImpl();
+        std::string type_name{typeid(decltype(*this)).name()};
+        return szeimpl::size(mlkm) + szeimpl::size(type_name);
     }
     /*
     static VirtualFileCatalog Create(DataStorage &storage){ //should it be a singleton?

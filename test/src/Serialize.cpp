@@ -57,7 +57,7 @@ TEST(SerializeTest, SimpleSerializeDeserialize){
     SerializableImplTest si{1, 2};
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), si);
     SerializableImplTest si_res = deserialize<SerializableImplTest>(*storage.get(), addr);
-    ASSERT_EQ(si, si_res);
+    EXPECT_EQ(si, si_res);
 }
 
 TEST(SerializeTest, SimpleOverwrite){
@@ -69,11 +69,11 @@ TEST(SerializeTest, SimpleOverwrite){
     StorageAddress addr;
     serialize<StorageAddress>(*storage.get(), si2, addr);
     auto si2_res = deserialize_ptr<SerializableImplTest>(*storage.get(), addr);
-    ASSERT_EQ(si2, *si2_res.get());
+    EXPECT_EQ(si2, *si2_res.get());
     //overwrite
     serialize<StorageAddress>(*storage.get(), si, addr);
     auto si2_res2 = deserialize<SerializableImplTest>(*storage.get(), addr);
-    ASSERT_EQ(si, si2_res2);
+    EXPECT_EQ(si, si2_res2);
 }
 
 TEST(SerializeTest, IntegralSerializeDeserialize){
@@ -83,7 +83,7 @@ TEST(SerializeTest, IntegralSerializeDeserialize){
     int a = 3;
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), a);
     int a_res = deserialize<int>(*storage.get(), addr);
-    ASSERT_EQ(a, a_res);
+    EXPECT_EQ(a, a_res);
 }
 
 TEST(SerializeTest, IntegralOverwrite){
@@ -95,11 +95,11 @@ TEST(SerializeTest, IntegralOverwrite){
     StorageAddress addr;
     serialize<StorageAddress>(*storage.get(), a1, addr);
     auto a1_res = deserialize_ptr<int>(*storage.get(), addr);
-    ASSERT_EQ(*a1_res, a1);
+    EXPECT_EQ(*a1_res, a1);
     //overwrite
     serialize<StorageAddress>(*storage.get(), a2, addr);
     auto a2_res = deserialize<int>(*storage.get(), addr);
-    ASSERT_EQ(a2_res, a2);
+    EXPECT_EQ(a2_res, a2);
 }
 
 TEST(SerializeTest, StringSerializeDeserialize){
@@ -109,13 +109,13 @@ TEST(SerializeTest, StringSerializeDeserialize){
         std::string s{"string1"};
         StorageAddress addr = serialize<StorageAddress>(*storage.get(), s);
         std::string s_res = deserialize<std::string>(*storage.get(), addr);
-        ASSERT_EQ(s, s_res);
+        EXPECT_EQ(s, s_res);
     }
     {
         std::string s{""};
         StorageAddress addr = serialize<StorageAddress>(*storage.get(), s);
         std::string s_res = deserialize<std::string>(*storage.get(), addr);
-        ASSERT_EQ(s, s_res);
+        EXPECT_EQ(s, s_res);
     }
 }
 
@@ -128,11 +128,11 @@ TEST(SerializeTest, StringOverwrite){
     StorageAddress addr;
     serialize<StorageAddress>(*storage.get(), s1, addr);
     auto s1_res = deserialize_ptr<std::string>(*storage.get(), addr);
-    ASSERT_EQ(*s1_res, s1);
+    EXPECT_EQ(*s1_res, s1);
     //overwrite
     serialize<StorageAddress>(*storage.get(), s2, addr);
     auto s2_res = deserialize<std::string>(*storage.get(), addr);
-    ASSERT_EQ(s2_res, s2);
+    EXPECT_EQ(s2_res, s2);
 }
 
 struct TestPOD{
@@ -156,7 +156,7 @@ TEST(SerializeTest, PODSerializeDeserialize){
     TestPOD pod{6, 444444, true, TestPOD::E::e2};
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), pod);
     TestPOD pod_res = deserialize<TestPOD>(*storage.get(), addr);
-    ASSERT_EQ(pod, pod_res);
+    EXPECT_EQ(pod, pod_res);
 }
 
 TEST(SerializeTest, PODOverwrite){
@@ -168,11 +168,11 @@ TEST(SerializeTest, PODOverwrite){
     StorageAddress addr;
     serialize<StorageAddress>(*storage.get(), pod1, addr);
     auto pod1_res = deserialize_ptr<TestPOD>(*storage.get(), addr);
-    ASSERT_EQ(*pod1_res.get(), pod1);
+    EXPECT_EQ(*pod1_res.get(), pod1);
     //overwrite
     serialize<StorageAddress>(*storage.get(), pod2, addr);
     auto pod2_res = deserialize<TestPOD>(*storage.get(), addr);
-    ASSERT_EQ(pod2, pod2_res);
+    EXPECT_EQ(pod2, pod2_res);
 }
 
 TEST(SerializeTest, SimplePairSerializeDeserialize){
@@ -182,8 +182,8 @@ TEST(SerializeTest, SimplePairSerializeDeserialize){
     std::pair<int, const uint64_t> pair1{-5, 0xfffffE6};
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), pair1);
     auto pair_res = deserialize<decltype(pair1)>(*storage.get(), addr);
-    ASSERT_EQ(pair_res.first, -5);
-    ASSERT_EQ(pair_res.second, 0xfffffE6);
+    EXPECT_EQ(pair_res.first, -5);
+    EXPECT_EQ(pair_res.second, 0xfffffE6);
 }
 
 TEST(SerializeTest, ComplexPairSerializeDeserialize){
@@ -200,10 +200,10 @@ TEST(SerializeTest, ComplexPairSerializeDeserialize){
     auto &str_res = pair_res.first.second;
     auto &u64_res = pair_res.second.first;
     auto &si_res = pair_res.second.second;
-    ASSERT_EQ(pod_res, pod1);
-    ASSERT_EQ(str_res, "t1anyways");
-    ASSERT_EQ(u64_res, 111UL);
-    ASSERT_EQ(si_res, si1);
+    EXPECT_EQ(pod_res, pod1);
+    EXPECT_EQ(str_res, "t1anyways");
+    EXPECT_EQ(u64_res, 111UL);
+    EXPECT_EQ(si_res, si1);
 }
 
 TEST(SerializeTest, SimpleTupleSerializeDeserialize){
@@ -213,9 +213,9 @@ TEST(SerializeTest, SimpleTupleSerializeDeserialize){
     std::tuple<int, uint64_t, const char> tuple1{-333, 0xeeef6, 'L'};
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), tuple1);
     auto tuple_res = deserialize<decltype(tuple1)>(*storage.get(), addr);
-    ASSERT_EQ(std::get<0>(tuple_res), -333);
-    ASSERT_EQ(std::get<1>(tuple_res), 0xeeef6);
-    ASSERT_EQ(std::get<2>(tuple_res), 'L');
+    EXPECT_EQ(std::get<0>(tuple_res), -333);
+    EXPECT_EQ(std::get<1>(tuple_res), 0xeeef6);
+    EXPECT_EQ(std::get<2>(tuple_res), 'L');
 }
 
 TEST(SerializeTest, ComplexTupleSerializeDeserialize){
@@ -228,11 +228,11 @@ TEST(SerializeTest, ComplexTupleSerializeDeserialize){
         const std::pair<const char, TestPOD>> tuple1{si1, 0xeeef6, {'W', pod1}};
     StorageAddress addr = serialize<StorageAddress>(*storage.get(), tuple1);
     auto tuple_res = deserialize<decltype(tuple1)>(*storage.get(), addr);
-    ASSERT_EQ(std::get<0>(tuple_res).m[13], -2);
-    ASSERT_EQ(std::get<1>(tuple_res), 0xeeef6);
-    ASSERT_EQ(std::get<2>(tuple_res).first, 'W');
+    EXPECT_EQ(std::get<0>(tuple_res).m[13], -2);
+    EXPECT_EQ(std::get<1>(tuple_res), 0xeeef6);
+    EXPECT_EQ(std::get<2>(tuple_res).first, 'W');
     auto &pod_res = std::get<2>(tuple_res).second;
-    ASSERT_EQ(pod_res, pod1);
+    EXPECT_EQ(pod_res, pod1);
 }
 
 }

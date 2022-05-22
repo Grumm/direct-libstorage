@@ -17,10 +17,7 @@
 #define LOG_ERROR(str, ...) LOG(ERROR, str, ##__VA_ARGS__)
 #define LOG_ASSERT(str, ...) LOG(ASSERT, str, ##__VA_ARGS__)
 
-#ifdef NDEBUG
-#define ASSERT_ON(cond)
-#define ASSERT_ON_MSG(cond, msg)
-#else
+//#ifdef NDEBUG
 #define ASSERT_ON_MSG(cond, msg) do{ \
 		if(cond) [[unlikely]]{ \
 			LOG_ASSERT(std::string{"Assert "} + std::string{msg} + std::string{" "} + std::string{#cond}); \
@@ -28,7 +25,6 @@
 		} \
 	}while(0)
 #define ASSERT_ON(cond) ASSERT_ON_MSG(cond, "")
-#endif
 
 #ifndef DEBUG
 #define DEBUG 0

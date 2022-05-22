@@ -16,13 +16,16 @@ enum class UniqueIDName{
 };
 template<UniqueIDName I>
 class UniqueIDInterface{
-    uint32_t id;
 public:
+    static constexpr uint32_t DEFAULT = 0;
+    UniqueIDInterface(){}
     UniqueIDInterface(uint32_t id): id(id) {}
     uint32_t getUniqueID() const { return id; }
     bool operator==(const UniqueIDInterface<I> &other) const{
         return id == other.id;
     }
+protected:
+    uint32_t id{DEFAULT};
 };
 
 using UniqueIDInstance = UniqueIDInterface<UniqueIDName::Instance>;
@@ -42,7 +45,7 @@ class UniqueIDStorage {
     std::map<uint32_t, std::pair<StorageAddress, std::unique_ptr<T>>> m;
     //std::map<std::string, uint32_t> types;
     //TODO use typeid(variable).name() to store actual type and perform type check
-    uint32_t max_id{1};
+    uint32_t max_id{UniqueIDInterface<IDName>::DEFAULT};
 public:
     static constexpr size_t UNKNOWN_ID = 0;
     UniqueIDStorage(DataStorage &storage): storage(storage) {}
@@ -60,7 +63,8 @@ public:
         }
     }
     template<CUniqueID<IDName> U> //requires derived 
-    U &getInstance(uint32_t id){
+    U &getInstance(const UniqueIDInterface<IDName> &u){
+        auto id = u.UniqueIDInstance::getUniqueID();
         auto it = m.find(id);
         ASSERT_ON(it == m.end());
         auto &t_ptr = it->second.second;
@@ -91,7 +95,7 @@ public:
     RemovedUPTR remove_uptr(const typename decltype(m)::value_type &p) const{
         return {p.first, p.second.first};
     }
-    //TODO serialize impl
+
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON(getSizeImpl() > buffer.allocated());
         size_t offset = 0;
@@ -141,23 +145,52 @@ public:
 template<typename T, UniqueIDName IDName = UniqueIDName::Instance>
 requires CUniqueID<T, IDName>
 class UniqueIDPtr{
-    T *ptr;
+    T *ptr{nullptr};
+    UniqueIDInterface<IDName> uid;
 public:
-    UniqueIDPtr(T *ptr): ptr(ptr) {}
-    UniqueIDPtr(T &ptr): ptr(&ptr) {}
+    UniqueIDPtr() {}
+    UniqueIDPtr(T *ptr): ptr(ptr), uid(*ptr) {}
+    UniqueIDPtr(T &ptr): ptr(&ptr), uid(ptr) {}
+    UniqueIDPtr(UniqueIDInterface<IDName> &uid): uid(uid) {}
     T &get() const{
         return *ptr;
     }
-    bool is_null() const{
-        return ptr == nullptr;
+    bool is_init() const{
+        return ptr != nullptr;
+    }
+    bool is_empty() const{
+        return ptr == nullptr && uid.getUniqueID() == UniqueIDInterface<IDName>::DEFAULT;
+    }
+    uint32_t getID() const{
+        if(is_init()){
+            return ptr->UniqueIDInterface<IDName>::getUniqueID();
+        } else {
+            return uid.getUniqueID();
+        }
+    }
+    template<typename U>
+    requires std::is_base_of_v<T, U>
+    void init(UniqueIDStorage<U, IDName> &uid_storage){
+        if(is_init() || is_empty()){
+            return;
+        }
+        ptr = dynamic_cast<U *>(&uid_storage.template getInstance<U>(uid));
     }
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
-        return szeimpl::s(*static_cast<UniqueIDInterface<IDName> *>(ptr), buffer);
+        if(is_init()){
+            return szeimpl::s(*static_cast<UniqueIDInterface<IDName> *>(ptr), buffer);
+        } else {
+            return szeimpl::s(uid, buffer);
+        }
     }
     static UniqueIDPtr<T, IDName> deserializeImpl(const StorageBufferRO<> &buffer, UniqueIDStorage<T, IDName> &uid_storage) {
         auto uid = szeimpl::d<UniqueIDInterface<IDName>>(buffer);
         return UniqueIDPtr<T, IDName>{uid_storage.template getInstance<T>(uid.getUniqueID())};
+    }
+    static UniqueIDPtr<T, IDName> deserializeImpl(const StorageBufferRO<> &buffer) {
+        auto uid = szeimpl::d<UniqueIDInterface<IDName>>(buffer);
+        return UniqueIDPtr<T, IDName>{uid};
     }
     size_t getSizeImpl() const {
         return szeimpl::size(*static_cast<UniqueIDInterface<IDName> *>(ptr));

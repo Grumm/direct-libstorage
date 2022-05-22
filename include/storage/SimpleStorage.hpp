@@ -270,7 +270,7 @@ public:
     SimpleStorage(R &rma, size_t static_size, uint32_t id): DataStorage(id), rma(rma) {
         init_simple_storage(static_size);
     }
-    SimpleStorage(R &rma, uint32_t id = 0): DataStorage(id), rma(rma) {
+    SimpleStorage(R &rma, uint32_t id = DataStorage::UniqueIDInterface::DEFAULT): DataStorage(id), rma(rma) {
         init_simple_storage(sizeof(StaticHeader));
     }
 
@@ -352,9 +352,9 @@ public:
     virtual Result serializeImpl(StorageBuffer<> &buffer) const override{
         return szeimpl::s(rma, buffer);
     }
-    template<typename T>
-    static T deserializeImpl(const StorageBufferRO<> &buffer) {
-        return SimpleStorage<T>{szeimpl::d<R>(buffer)};
+    static SimpleStorage<R> deserializeImpl(const StorageBufferRO<> &buffer, uint32_t id = DataStorage::UniqueIDInterface::DEFAULT) {
+        auto rma = new R{szeimpl::d<R>(buffer)}; //TODO rework rma & ds relationships
+        return SimpleStorage<R>{*rma, id};
     }
     virtual size_t getSizeImpl() const{
         return szeimpl::size(rma);
