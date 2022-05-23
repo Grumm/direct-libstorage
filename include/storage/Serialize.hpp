@@ -41,12 +41,19 @@ namespace sze{
         serialize(obj, storage, address);
         return address;
     }
+    template<typename F>
+    class ScopeDestructor{
+        F f;
+    public:
+        ScopeDestructor(F &&f): f(std::forward<F>(f)) {}
+        ~ScopeDestructor(){ f(); }
+    };
+
     template<CSerializableImpl T, typename ...Args>
     T deserialize(DataStorage &storage, const StorageAddress &addr, Args&&... args){
         StorageBufferRO buffer = storage.readb(addr);
-        T obj = szeimpl::d<T, void, Args...>(buffer, std::forward<Args>(args)...);
-        storage.commit(buffer);
-        return obj;
+        ScopeDestructor sd{[&storage, &buffer](){ storage.commit(buffer); }}; //TODO mvoe to StorageBuffer
+        return szeimpl::d<T, void, Args...>(buffer, std::forward<Args>(args)...);
     }
     template<CSerializableImpl T>
     size_t getSize(const T &obj){
@@ -80,7 +87,8 @@ T deserialize(S &storage, const A &address, Args&& ...args){
 
 template<CSerializable T, CStorageAddress A, CStorage<T> S, typename ...Args>
 std::unique_ptr<T> deserialize_ptr(S &storage, const A &address, Args&& ...args){
-    return std::make_unique<T>(deserialize<T, A, S, Args...>(storage, address, std::forward<Args>(args)...));
+    T *t = new T{deserialize<T, A, S, Args...>(storage, address, std::forward<Args>(args)...)};
+    return std::unique_ptr<T>(t);
 }
 //for builtins
 

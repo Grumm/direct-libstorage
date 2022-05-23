@@ -39,7 +39,6 @@ public:
 
 class StorageManager {
     static constexpr uint32_t FILESIZE = 24; //16MB
-    FileRMA<FILESIZE> rma;
     SimpleFileStorage<FILESIZE> storage;
 
     struct Metadata{
@@ -65,8 +64,7 @@ class StorageManager {
     std::unique_ptr<UniqueIDStorage<DataStorage>> uid;
 public:
     StorageManager(const std::string &filename):
-            rma(filename),
-            storage(rma, Metadata::size()),
+            storage(FileRMA<FILESIZE>{filename}, Metadata::size()),
             metadata_addr(storage.get_static_section()),
             metadata(deserialize<Metadata>(storage, metadata_addr)) {
         metadata.init(storage);

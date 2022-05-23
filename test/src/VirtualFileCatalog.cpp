@@ -9,17 +9,18 @@ namespace {
 
 static constexpr size_t MEMORYSIZE = 20;  // 1MB
 static constexpr size_t FILESIZE = 20;  // 1MB
+static const std::string filename1{"/tmp/.UniqueDataStoragePtrSerializeDeserialize1"};
+static const std::string filename2{"/tmp/.UniqueDataStoragePtrSerializeDeserialize2"};
 
 TEST(SimpleMultiLevelKeyMapTest, SimpleSerializeDeserialize) {
-  auto rma = std::make_unique<MemoryRMA<MEMORYSIZE>>();
-  auto storage = std::make_unique<SimpleRamStorage<MEMORYSIZE>>(*rma.get());
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
 
   SimpleMultiLevelKeyMap<short, int, uint64_t, const char> smlkm1;
   smlkm1.add(-333, 0xeeef6, 'L', 13);
   smlkm1.add(555, 0xfffffffff16UL, 'T', -15000);
   smlkm1.add(1, 155566023013513, 's', 0);
-  StorageAddress addr = serialize<StorageAddress>(*storage.get(), smlkm1);
-  auto smlkm_res = deserialize<decltype(smlkm1)>(*storage.get(), addr);
+  StorageAddress addr = serialize<StorageAddress>(storage, smlkm1);
+  auto smlkm_res = deserialize<decltype(smlkm1)>(storage, addr);
   auto match1 = smlkm_res.get(-333, 0xeeef6, 'L');
   EXPECT_EQ(match1.first, true);
   EXPECT_EQ(match1.second, 13);
@@ -37,8 +38,7 @@ TEST(SimpleMultiLevelKeyMapTest, SimpleSerializeDeserialize) {
 using TestVFCType1 =
     VirtualFileCatalog<SimpleRamStorage<MEMORYSIZE>, int, char>;
 TEST(VirtualFileCatalogTest, SimpleCreateLookup) {
-  MemoryRMA<MEMORYSIZE> rma{};
-  SimpleRamStorage<MEMORYSIZE> storage{rma};
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   {
     TestVFCType1 vfc1{storage};
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
@@ -50,8 +50,7 @@ TEST(VirtualFileCatalogTest, SimpleCreateLookup) {
 }
 
 TEST(VirtualFileCatalogTest, SimpleSerializeDeserialize) {
-  MemoryRMA<MEMORYSIZE> rma{};
-  SimpleRamStorage<MEMORYSIZE> storage{rma};
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   {
     TestVFCType1 vfc1{storage};
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
@@ -66,8 +65,7 @@ TEST(VirtualFileCatalogTest, SimpleSerializeDeserialize) {
 }
 
 TEST(VirtualFileCatalogTest, SimpleSerializeDeserializeAddTwice) {
-  MemoryRMA<MEMORYSIZE> rma{};
-  SimpleRamStorage<MEMORYSIZE> storage{rma};
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   {
     TestVFCType1 vfc1{storage};
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
@@ -91,8 +89,7 @@ TEST(VirtualFileCatalogTest, SimpleSerializeDeserializeAddTwice) {
 }
 
 TEST(VirtualFileCatalogTest, SimpleSerializeDeserializeAddDeleteTwice) {
-  MemoryRMA<MEMORYSIZE> rma{};
-  SimpleRamStorage<MEMORYSIZE> storage{rma};
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   {
     TestVFCType1 vfc1{storage};
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
@@ -116,14 +113,11 @@ using UniqueDataStorage = UniqueIDPtr<DataStorage>;
 using TestVFCType2 =
     VirtualFileCatalog<SimpleRamStorage<MEMORYSIZE>, UniqueDataStorage, int16_t, uint64_t>;
 TEST(VirtualFileCatalogTest, UniqueDataStoragePtrSerializeDeserialize) {
-  MemoryRMA<MEMORYSIZE> rma{};
-  SimpleRamStorage<MEMORYSIZE> storage{rma};
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   UniqueIDStorage<SimpleFileStorage<FILESIZE>> uid_s{storage};
   {
-    FileRMA<FILESIZE> rma1{"/tmp/.UniqueDataStoragePtrSerializeDeserialize1"};
-    SimpleFileStorage<FILESIZE> storage1{rma1, 3};
-    FileRMA<FILESIZE> rma2{"/tmp/.UniqueDataStoragePtrSerializeDeserialize2"};
-    SimpleFileStorage<FILESIZE> storage2{rma2, 7};
+    auto storage1 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename1}, 3};
+    auto storage2 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename2}, 7};
     UniqueDataStorage uds1{storage1};
     UniqueDataStorage uds2{storage2};
   
@@ -143,16 +137,15 @@ TEST(VirtualFileCatalogTest, UniqueDataStoragePtrSerializeDeserialize) {
 }
 
 TEST(VirtualFileCatalogTest, UDSPtrSerializeDeserializeInstantiate) {
-  MemoryRMA<MEMORYSIZE> rma{};
-  SimpleRamStorage<MEMORYSIZE> storage{rma};
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   UniqueIDStorage<SimpleFileStorage<FILESIZE>> uid_s{storage};
   StorageAddress addr1;
   StorageAddress addr2;
   {
-    auto rma1 = new FileRMA<FILESIZE>{"/tmp/.UniqueDataStoragePtrSerializeDeserialize1"};
-    auto storage1 = new SimpleFileStorage<FILESIZE>{*rma1, 3};
-    auto rma2 = new FileRMA<FILESIZE>{"/tmp/.UniqueDataStoragePtrSerializeDeserialize2"};
-    auto storage2 = new SimpleFileStorage<FILESIZE>{*rma2, 7};
+	  std::filesystem::remove(std::filesystem::path{filename1});
+	  std::filesystem::remove(std::filesystem::path{filename2});
+    auto storage1 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename1}, 3};
+    auto storage2 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename2}, 7};
     UniqueDataStorage uds1{storage1};
     UniqueDataStorage uds2{storage2};
 
@@ -202,8 +195,7 @@ TEST(VirtualFileCatalogTest, UDSPtrSerializeDeserializeInstantiate) {
 }
 
 TEST(VirtualFileCatalogTest, UDSPtrSDInstantiateSD) {
-  MemoryRMA<MEMORYSIZE> rma{};
-  SimpleRamStorage<MEMORYSIZE> storage{rma};
+  SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   StorageAddress addr1;
   StorageAddress addr2;
   StorageAddress addr_s1;
@@ -211,10 +203,10 @@ TEST(VirtualFileCatalogTest, UDSPtrSDInstantiateSD) {
   StorageAddress addr_uids;
   {
     UniqueIDStorage<SimpleFileStorage<FILESIZE>> uid_s{storage};
-    auto rma1 = new FileRMA<FILESIZE>{"/tmp/.UniqueDataStoragePtrSerializeDeserialize1"};
-    auto storage1 = new SimpleFileStorage<FILESIZE>{*rma1, 3};
-    auto rma2 = new FileRMA<FILESIZE>{"/tmp/.UniqueDataStoragePtrSerializeDeserialize2"};
-    auto storage2 = new SimpleFileStorage<FILESIZE>{*rma2, 7};
+	  std::filesystem::remove(std::filesystem::path{filename1});
+	  std::filesystem::remove(std::filesystem::path{filename2});
+    auto storage1 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename1}, 3};
+    auto storage2 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename2}, 7};
     UniqueDataStorage uds1{storage1};
     UniqueDataStorage uds2{storage2};
 

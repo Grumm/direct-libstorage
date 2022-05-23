@@ -45,6 +45,15 @@ class FileRMA{
     //TODO call msync(membase, MAX_FILESIZE, MS_ASYNC) periodically
     //TODO use madvise(membase, MAX_FILESIZE, ) when needed https://linux.die.net/man/2/madvise
 public:
+    FileRMA(FileRMA &&other):
+        filename(other.filename), is_open(other.is_open), fd(other.fd),
+        membase(other.membase), membase_readonly(other.membase_readonly){
+        other.is_open = false;
+    }
+    FileRMA &operator=(FileRMA &&other) = delete;
+    FileRMA(const FileRMA &other) = delete;
+    FileRMA &operator=(const FileRMA &) = delete;
+
     FileRMA(const std::string &filename): filename(filename) { open(); }
     Result open(){
         fd = ::open(filename.c_str(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
@@ -170,6 +179,14 @@ class MemoryRMA{
     void *membase;
     static constexpr size_t MAX_MEMSIZE = (1UL << MAX_MEMSIZE_OFFSET);
 public:
+    MemoryRMA(MemoryRMA &&other):
+        is_open(other.is_open), membase(other.membase) {
+        other.is_open = false;
+    }
+    MemoryRMA &operator=(MemoryRMA &&other) = delete;
+    MemoryRMA(const MemoryRMA &other) = delete;
+    MemoryRMA &operator=(const MemoryRMA &) = delete;
+
     MemoryRMA() { open(); }
     Result open(){
         membase = mmap(0, MAX_MEMSIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_AUTOGROW, -1, 0);

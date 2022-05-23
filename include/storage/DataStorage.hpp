@@ -8,11 +8,10 @@
 #include <storage/SerializeImpl.hpp>
 #include <storage/UniqueID.hpp>
 
-class DataStorage: public UniqueIDInstance {
+class DataStorage;
+/*
+class DSInterfaceCast{
 public:
-	struct Stat{
-		//TODO
-	};
 	template<typename T>
 		requires std::negation_v<std::is_same<T, void>>
 	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
@@ -42,6 +41,18 @@ public:
 		requires std::negation_v<std::is_same<T, void>>
 	StorageBufferRO<T> readb(const StorageAddress &addr){
 		return writeb(addr).template cast<T>();
+	}
+};*/
+
+class DataStorage: public UniqueIDInstance {
+public:
+	struct Stat{
+		//TODO
+	};
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
+		return read(addr, buffer.template cast<void>());
 	}
 
 	virtual StorageAddress get_static_section() = 0;

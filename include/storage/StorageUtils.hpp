@@ -53,6 +53,8 @@ public:
 
 		return *this;
 	}
+	operator StorageBuffer<void>() const { return this->template cast<void>(); }
+
 	template<typename U = T>
 	StorageBuffer<U> &cast() {
 		return *reinterpret_cast<StorageBuffer<U> *>(this);
@@ -128,6 +130,9 @@ public:
 		data(other.template get<T>()), data_size(other.size()) {}
 	StorageBufferRO(StorageBufferRO &&buf) = default;
 	StorageBufferRO(const StorageBufferRO &buf) = default;
+
+	operator StorageBufferRO<void>() const { return this->template cast<void>(); }
+
 
 	constexpr StorageBufferRO &operator=(const StorageBufferRO &buf){
 		data = buf.get();

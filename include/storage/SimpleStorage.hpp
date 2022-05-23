@@ -228,7 +228,7 @@ public:
 
 template<CRMA R>
 class SimpleStorage: public DataStorage{
-    R &rma; //e.g. FileRMA{filename}
+    R rma;
 
     //virtual address space => file mapping
     //mapping -> at the end of the file when close
@@ -267,10 +267,10 @@ class SimpleStorage: public DataStorage{
         }
     }
 public:
-    SimpleStorage(R &rma, size_t static_size, uint32_t id): DataStorage(id), rma(rma) {
+    SimpleStorage(R &&rma, size_t static_size, uint32_t id): DataStorage(id), rma(std::move(rma)) {
         init_simple_storage(static_size);
     }
-    SimpleStorage(R &rma, uint32_t id = DataStorage::UniqueIDInterface::DEFAULT): DataStorage(id), rma(rma) {
+    SimpleStorage(R &&rma, uint32_t id = DataStorage::UniqueIDInterface::DEFAULT): DataStorage(id), rma(std::move(rma)) {
         init_simple_storage(sizeof(StaticHeader));
     }
 
@@ -302,6 +302,11 @@ public:
         //stub, no implementation
         return mapping.del(addr.addr, addr.size);
     }
+	template<typename T>
+		requires std::negation_v<std::is_same<T, void>>
+	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
+		return read(addr, buffer.template cast<void>());
+	}
     virtual Result read(const StorageAddress &addr, StorageBuffer<> &buffer) override {
         auto [offset, size] = mapping.lookup(addr.addr, addr.size, true);
         LOG_INFO("Storage::read [%lu,%lu]", offset, size);
@@ -353,8 +358,7 @@ public:
         return szeimpl::s(rma, buffer);
     }
     static SimpleStorage<R> deserializeImpl(const StorageBufferRO<> &buffer, uint32_t id = DataStorage::UniqueIDInterface::DEFAULT) {
-        auto rma = new R{szeimpl::d<R>(buffer)}; //TODO rework rma & ds relationships
-        return SimpleStorage<R>{*rma, id};
+        return SimpleStorage<R>{R{szeimpl::d<R>(buffer)}, id};
     }
     virtual size_t getSizeImpl() const{
         return szeimpl::size(rma);
