@@ -1,6 +1,7 @@
 #pragma once
 
 #include <storage/SerializeImpl.hpp>
+#include <storage/SerializeSpecialization.hpp>
 
 /****************************************************/
 

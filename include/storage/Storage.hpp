@@ -3,6 +3,7 @@
 #include <storage/Utils.hpp>
 #include <storage/StorageUtils.hpp>
 #include <storage/SerializeImpl.hpp>
+#include <storage/SerializeSpecialization.hpp>
 #include <storage/UniqueID.hpp>
 #include <storage/DataStorage.hpp>
 #include <storage/Serialize.hpp>

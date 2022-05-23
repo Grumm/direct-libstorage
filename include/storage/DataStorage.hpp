@@ -2,10 +2,12 @@
 
 #include <type_traits>
 #include <functional>
+#include <memory>
 
 #include <storage/Utils.hpp>
 #include <storage/StorageUtils.hpp>
 #include <storage/SerializeImpl.hpp>
+#include <storage/SerializeSpecialization.hpp>
 #include <storage/UniqueID.hpp>
 
 class DataStorage;
