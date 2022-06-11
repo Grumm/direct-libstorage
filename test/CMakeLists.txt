@@ -24,6 +24,7 @@ macro(package_add_test TESTNAME)
     set_target_properties(${TESTNAME} PROPERTIES FOLDER tests)
 endmacro()
 
+package_add_test(IntervalMap src/IntervalMap.cpp)
 package_add_test(StorageBuffer src/StorageBuffer.cpp)
 package_add_test(Serialize src/Serialize.cpp)
 package_add_test(RMA src/RMA.cpp)

@@ -5,17 +5,19 @@
 #include <filesystem>
 #include <source_location>
 #include <exception>
+#include <string_view>
 
-#define LOG(LEVEL, str, ...) do{ \
+#define __LOG(LEVEL, str, ...) do{ \
 		auto location = std::source_location::current(); \
 		fprintf(stderr, (std::string{"[%s %s %s:%d '%s'] "} + str + std::string{"\n"}).c_str(), \
 			#LEVEL, __TIME__, std::filesystem::path(location.file_name()).filename().c_str(), \
 			location.line(), location.function_name(), ##__VA_ARGS__); \
 	}while(0)
-#define LOG_INFO(str, ...) LOG(INFO, str, ##__VA_ARGS__)
-#define LOG_WARNING(str, ...) LOG(WARNING, str, ##__VA_ARGS__)
-#define LOG_ERROR(str, ...) LOG(ERROR, str, ##__VA_ARGS__)
-#define LOG_ASSERT(str, ...) LOG(ASSERT, str, ##__VA_ARGS__)
+#define LOG_INFO(str, ...) __LOG(INFO, str, ##__VA_ARGS__)
+#define LOG_WARNING(str, ...) __LOG(WARNING, str, ##__VA_ARGS__)
+#define LOG_ERROR(str, ...) __LOG(ERROR, str, ##__VA_ARGS__)
+#define LOG_ASSERT(str, ...) __LOG(ASSERT, str, ##__VA_ARGS__)
+#define LOG(str, ...) LOG_INFO(str, ##__VA_ARGS__)
 
 //#ifdef NDEBUG
 #define ASSERT_ON_MSG(cond, msg) do{ \
@@ -48,4 +50,17 @@ const T *PTR_OFFSET(const T *base, size_t offset){
 template <typename T>
 T *PTR_OFFSET(T *base, size_t offset){
 	return reinterpret_cast<T *>(reinterpret_cast<char *>(base) + offset);
+}
+
+template <typename T>
+uint8_t MostSignificantBitSet(T v){
+#if __has_builtin(__builtin_clzll)
+  if(v == 0)
+	return 0;
+  uint8_t LeadingZeros = __builtin_clzll(v);
+  constexpr uint8_t BitWidth = sizeof(T);
+  return BitWidth - LeadingZeros - 1;
+#else
+#error "Unsupported CLZ command"
+#endif
 }
