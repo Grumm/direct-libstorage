@@ -2,7 +2,9 @@
 
 #include <memory>
 #include <cstring>
+#include <functional>
 #include <array>
+#include <bit>
 
 #include <storage/SerializeImpl.hpp>
 
@@ -120,6 +122,14 @@ public:
 
 /******************/
 
+#if defined(__APPLE__)
+#define REVERSE_TUPLE_APPLY  0
+#define REVERSE_TUPLE_CREATE 0
+#else
+#define REVERSE_TUPLE_APPLY  0
+#define REVERSE_TUPLE_CREATE 1
+#endif
+
 template <std::size_t ... Is>
 constexpr auto indexSequenceReverse (std::index_sequence<Is...> const &)
    -> decltype( std::index_sequence<sizeof...(Is)-1U-Is...>{} );
@@ -127,28 +137,45 @@ template <std::size_t N>
 using makeIndexSequenceReverse = decltype(indexSequenceReverse(std::make_index_sequence<N>{}));
 
 template<typename T, size_t... I>
-auto
-reverse_impl(T&& t, std::index_sequence<I...>)
-{
+constexpr auto reverse_impl(T&& t, std::index_sequence<I...>) {
   return std::make_tuple(std::get<sizeof...(I) - 1 - I>(std::forward<T>(t))...);
 }
-
 template<typename T>
-auto reverse_tuple(T&& t)
-{
-  return reverse_impl(std::forward<T>(t),
-                      std::make_index_sequence<std::tuple_size<T>::value>());
+constexpr auto reverse_tuple(T&& t) {
+  return reverse_impl(std::forward<T>(t), std::make_index_sequence<std::tuple_size<T>::value>());
 }
 
 template<typename Tuple, typename F, std::size_t ...I>
-auto apply_impl(F& f, std::index_sequence<I...>) {
+constexpr auto tuple_create_impl(F&& f, std::index_sequence<I...>) {
     return std::make_tuple(f.template operator()<std::tuple_element_t<I, Tuple>>()...);
 }
 template<typename Tuple, typename F>
-auto apply_make_tuple(F& f) {
+constexpr auto tuple_create(F&& f) {
+#if REVERSE_TUPLE_CREATE
     using Indices = makeIndexSequenceReverse<std::tuple_size<std::remove_cvref_t<Tuple>>::value>;
-    return reverse_tuple(apply_impl<Tuple, F>(f, Indices()));
+    return reverse_tuple(tuple_create_impl<Tuple, F>(std::forward<F>(f), Indices()));
+#else
+    using Indices = std::make_index_sequence<std::tuple_size<std::remove_cvref_t<Tuple>>::value>;
+    return tuple_create_impl<Tuple, F>(std::forward<F>(f), Indices{});
+#endif
 }
+
+template <typename Tuple, typename F, std::size_t... I>
+constexpr decltype(auto) tuple_apply_impl(F&& f, Tuple&& t, std::index_sequence<I...>) {
+    // This implementation is valid since C++20 (via P1065R2)
+    // In C++17, a constexpr counterpart of std::invoke is actually needed here
+    return std::invoke(std::forward<F>(f), std::get<I>(std::forward<Tuple>(t))...);
+}
+template <typename Tuple, typename F>
+constexpr decltype(auto) tuple_apply(F&& f, Tuple&& t) {
+#if REVERSE_TUPLE_APPLY
+    using Indices = makeIndexSequenceReverse<std::tuple_size<std::remove_cvref_t<Tuple>>::value>;
+#else
+    using Indices = std::make_index_sequence<std::tuple_size<std::remove_cvref_t<Tuple>>::value>;
+#endif
+    return tuple_apply_impl(std::forward<F>(f), std::forward<Tuple>(t), Indices{});
+}
+
 /******************/
 
 template<typename U, typename T, size_t... I>
@@ -173,7 +200,7 @@ public:
         Result res = Result::Success;
         size_t offset = 0;
         StorageBuffer buf;
-        std::apply([&buf, buffer, &offset, &res](auto&&... arg){
+        tuple_apply([&buf, buffer, &offset, &res](auto&&... arg){
             ((
                 buf = buffer.offset_advance(offset, szeimpl::size(arg)),
                 res = szeimpl::s<std::remove_cvref_t<decltype(arg)>>(arg, buf) /*TODO res && */
@@ -197,7 +224,7 @@ public:
             offset += szeimpl::size(t);
             return t;
         };
-        auto tuple = apply_make_tuple<T>(deserialize_argument);
+        auto tuple = tuple_create<T>(deserialize_argument);
         return instantiate_from_tuple<BuiltinSerializeImpl<T>>(std::move(tuple));
     }
 #if 0
