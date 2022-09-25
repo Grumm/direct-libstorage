@@ -18,7 +18,11 @@
 #endif
 
 #ifndef MAP_AUTOGROW
-#define MAP_AUTOGROW 0x8000
+#define MAP_AUTOGROW 0x0000
+#endif
+
+#ifndef MAP_FILE
+#define MAP_FILE 0x0000
 #endif
 
 template<typename T>
@@ -57,16 +61,20 @@ public:
     FileRMA(const std::string &filename): filename(filename) { open(); }
     Result open(){
         fd = ::open(filename.c_str(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-        if(fd == -1){
+        if(fd < 0){
             int e = errno;
             LOG_ERROR("Failed to open file %s with %x", filename.c_str(), e);
             return Result::Failure;
         }
+#ifdef __APPLE__
+        ::lseek(fd, MAX_FILESIZE, SEEK_SET);
+        ::write(fd, " ", 1);
+#endif
         //MAP_PRIVATE to enable Huge Pages
-        membase = mmap(0, MAX_FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_AUTOGROW, fd, 0);
+        membase = ::mmap(0, MAX_FILESIZE, PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED | MAP_AUTOGROW, fd, 0);
         if(membase == MAP_FAILED){
             int e = errno;
-            LOG_ERROR("Failed to mmap membase with %x", e);
+            LOG_ERROR("Failed to mmap membase with %s", strerror(e));
             ::close(fd);
             return Result::Failure;
         }
@@ -78,10 +86,10 @@ public:
                 //TODO loop N times
             }
         }
-        membase_readonly = mmap(0, MAX_FILESIZE, PROT_READ, MAP_SHARED | MAP_AUTOGROW, fd, 0);
+        membase_readonly = ::mmap(0, MAX_FILESIZE, PROT_READ, MAP_FILE | MAP_SHARED | MAP_AUTOGROW, fd, 0);
         if(membase_readonly == MAP_FAILED){
             int e = errno;
-            LOG_ERROR("Failed to mmap membase_readonly with %x", e);
+            LOG_ERROR("Failed to mmap membase_readonly with %s", strerror(e));
             ::munmap(membase, MAX_FILESIZE);
             ::close(fd);
             return Result::Failure;
@@ -192,7 +200,7 @@ public:
         membase = mmap(0, MAX_MEMSIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_AUTOGROW, -1, 0);
         if(membase == MAP_FAILED){
             int e = errno;
-            LOG_ERROR("Failed to mmap membase with %x", e);
+            LOG_ERROR("Failed to mmap membase with %s", strerror(e));
             return Result::Failure;
         }
         int advise = madvise(membase, MAX_MEMSIZE, MADV_HUGEPAGE);
@@ -291,7 +299,7 @@ public:
         membase = mmap(0, MAX_MEMSIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
         if(membase == MAP_FAILED){
             int e = errno;
-            LOG_ERROR("Failed to mmap membase with %x", e);
+            LOG_ERROR("Failed to mmap membase with %s", strerror(e));
             return Result::Failure;
         }
         int advise = madvise(membase, MAX_MEMSIZE, MADV_HUGEPAGE);

@@ -22,6 +22,10 @@ namespace sze{
     }
 #endif
     template<CSerializableImpl T>
+    size_t getSize(const T &obj){
+        return szeimpl::size(obj);
+    }
+    template<CSerializableImpl T>
     void serialize(const T &obj, DataStorage &storage, StorageAddress &address){
         size_t size = getSize<T>(obj);
 
@@ -53,12 +57,8 @@ namespace sze{
     template<CSerializableImpl T, typename ...Args>
     T deserialize(DataStorage &storage, const StorageAddress &addr, Args&&... args){
         StorageBufferRO buffer = storage.readb(addr);
-        ScopeDestructor sd{[&storage, &buffer](){ storage.commit(buffer); }}; //TODO mvoe to StorageBuffer
+        ScopeDestructor sd{[&storage, &buffer](){ storage.commit(buffer); }}; //TODO move to StorageBuffer
         return szeimpl::d<T, void, Args...>(buffer, std::forward<Args>(args)...);
-    }
-    template<CSerializableImpl T>
-    size_t getSize(const T &obj){
-        return szeimpl::size(obj);
     }
 #if 0
     //interface

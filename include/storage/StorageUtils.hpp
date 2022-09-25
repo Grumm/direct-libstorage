@@ -1,6 +1,7 @@
 #pragma once 
 
 #include <cstdint>
+#include <type_traits>
 
 #include <storage/Utils.hpp>
 
@@ -18,6 +19,12 @@ struct StorageAddress{
 	size_t size{0};
 
 	bool is_null() const { return addr == NULL_ADDR; }
+	void reset() { addr = NULL_ADDR; size = 0; }
+
+	StorageAddress subrange(size_t offset, size_t newsize) const {
+		ASSERT_ON(size < offset + newsize);
+		return StorageAddress{addr + offset, newsize};
+	}
 };
 
 template<typename T = void>
@@ -211,6 +218,14 @@ public:
 		return address;
 	}
 };
+
+enum class AllocationPattern{
+    Sequential,
+    Random,
+    Ranges,
+    Default = Sequential,
+};
+
 
 #if 0
 class StorageRawBuffer{

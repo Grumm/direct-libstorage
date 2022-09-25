@@ -5,6 +5,38 @@
 
 #include <storage/Utils.hpp>
 
+template<typename T>
+concept CMergeMethod1 = requires(T &t1, T &&t2){
+    { t1.merge(t2) } -> std::same_as<T &>;
+};
+template<typename T>
+concept CMergeMethod2 = requires(T &t1, T &&t2){
+    { T::merge(t1, t2) } -> std::same_as<T &>;
+};
+template<typename T>
+concept CMergeMethod = CMergeMethod1<T> || CMergeMethod2<T>;
+
+template<typename T>
+class Merge{
+    T &operator()(T &t1, T &&t2);
+};
+
+template<CMergeMethod1 T>
+class Merge<T>{
+    T &operator()(T &t1, T &&t2){
+        return t1.merge(std::forward<T>(t2));
+    }
+};
+
+template<CMergeMethod2 T>
+class Merge<T>{
+    T &operator()(T &t1, T &&t2){
+        return T::merge(t1, std::forward<T>(t2));
+    }
+};
+
+//what we need: 1) merge for ObjectInstanceRange, 2) size_t in SimpleStorage.hpp
+
 //whole interval has the same value
 template<typename K, typename V>
 class IntervalMap{
@@ -41,7 +73,8 @@ class IntervalMap{
         return m.end();
     }
 
-    Result insert_impl(const K &start, const K &end, const V &v){
+    //template<typename F> , F &merge, Y &del, K &shrink -> some API
+    Result insert_impl(const K &start, const K &end, V &&v){
         auto it = find_it(start, false);
         decltype(it) it_prev = it;
         bool merged = false;
@@ -90,7 +123,7 @@ class IntervalMap{
             }
         }
         if(!merged){
-            auto [it_new, inserted] = m.emplace(start, std::make_pair(end, v));
+            auto [it_new, inserted] = m.emplace(start, std::make_pair(end, std::forward<V>(v)));
             LOG_INFO("inserting [%lu, %lu]", start, end);
             ASSERT_ON(!inserted);
         }
@@ -185,7 +218,14 @@ public:
             V &v = it->second.second;
             return v;
         }
+        //merge(IntervalResult other, M m), M - merge<V> object
     };
+
+    //merge<V> -> merge(V&v1_dst, V&&v2), mergeN(V&v1_dst, std::vector<V> &vec)
+    //set(): do merge, extend, set
+    //extend(IntervalResult) -> IntervalResult
+    //get_all_ranges(start, end) -> std::vector<>
+    //merge_all_ranges(start, end) -> IntervalResult
 
     //return whether found, interval start, interval end, V
     auto find(const K &k) const{
@@ -216,18 +256,18 @@ public:
     }
 */
 
-    Result set(const K &start, const K &end, const V &v){
+    Result set(const K &start, const K &end, V &&v){
         //find all intervals that have [start, end]
         //TODO
         del(start, end);
-        return insert_impl(start, end, v);
+        return insert_impl(start, end, std::forward<V>(v));
     }
 
-    Result insert(const K &start, const K &end, const V &v){
+    Result insert(const K &start, const K &end, V &&v){
         if(has(start, end)){
             del(start, end);
         }
-        return insert_impl(start, end, v);
+        return insert_impl(start, end, std::forward<V>(v));
     }
 
     bool has(const K &k) const{

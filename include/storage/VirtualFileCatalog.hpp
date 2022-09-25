@@ -165,14 +165,11 @@ class VirtualFileCatalog{
     using MLKM = SimpleMultiLevelKeyMap<Value, Keys...>;
     MLKM mlkm;
 
-    static constexpr size_t VFC_MAGIC = 0x5544F79A;
-    static constexpr size_t DEFAULT_ALLOC_SIZE = 1024;
-public:
-    VirtualFileCatalog(Storage &storage):
-        storage(storage),
-        static_header_address(storage.template get_static_section()),
-        static_header_buffer(storage.template writeb(static_header_address)),
-        static_header(static_header_buffer.get<StaticHeader>()) {
+    static constexpr uint64_t VFC_MAGIC = 0x5544F79A;
+    static constexpr size_t DEFAULT_ALLOC_SIZE = (1 << 10); //1KB
+
+    void init_vfc(){
+        ASSERT_ON(static_header_address.size < szeimpl::size(StaticHeader{}));
         if(static_header->magic != VFC_MAGIC){
             //new
             static_header->magic = VFC_MAGIC;
@@ -181,6 +178,22 @@ public:
             //deserialize mlkm
             mlkm = deserialize<MLKM>(storage, static_header->address);
         }
+    }
+public:
+    // addr is at least szeimpl::size(StaticHeader{})
+    VirtualFileCatalog(Storage &storage, StorageAddress &addr): //TODO write test: simple,  VFC<VFC>
+        storage(storage),
+        static_header_address(addr),
+        static_header_buffer(storage.template writeb(static_header_address)),
+        static_header(static_header_buffer.get<StaticHeader>()) {
+            init_vfc();
+    }
+    VirtualFileCatalog(Storage &storage):
+        storage(storage),
+        static_header_address(storage.template get_static_section()),
+        static_header_buffer(storage.template writeb(static_header_address)),
+        static_header(static_header_buffer.get<StaticHeader>()) {
+            init_vfc();
     }
     ~VirtualFileCatalog(){
         serialize(storage, mlkm, static_header->address);
@@ -216,6 +229,8 @@ public:
     //pointer to other storage - on which VFC opearates on
     static VirtualFileCatalog<Storage, Value, Keys...>
         deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage) {
+            //TODO not implemented. should not be called. use construction
+            ASSERT_ON_MSG(false, "Not implemented. Use constructor instead");
             size_t offset = 0;
             auto buf = buffer;
             auto type_name = szeimpl::d<std::string>(buf);

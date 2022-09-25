@@ -14,90 +14,140 @@ class DataStorage;
 /*
 class DSInterfaceCast{
 public:
-	template<typename T>
-		requires std::negation_v<std::is_same<T, void>>
-	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
-		return read(addr, buffer.template cast<void>());
-	}
-	template<typename T>
-		requires std::negation_v<std::is_same<T, void>>
-	Result write(const StorageAddress &addr, const StorageBuffer<T> &buffer){
-		return write(addr, buffer.template cast<void>());
-	}
-	template<typename T>
-		requires std::negation_v<std::is_same<T, void>>
-	Result commit(const StorageBuffer<T> &buffer){
-		return commit(buffer.template cast<void>());
-	}
-	template<typename T>
-		requires std::negation_v<std::is_same<T, void>>
-	Result commit(const StorageBufferRO<T> &buffer){
-		return commit(buffer.template cast<void>());
-	}
-	template<typename T>
-		requires std::negation_v<std::is_same<T, void>>
-	StorageBuffer<T> writeb(const StorageAddress &addr){
-		return writeb(addr).template cast<T>();
-	}
-	template<typename T>
-		requires std::negation_v<std::is_same<T, void>>
-	StorageBufferRO<T> readb(const StorageAddress &addr){
-		return writeb(addr).template cast<T>();
-	}
+    template<typename T>
+        requires std::negation_v<std::is_same<T, void>>
+    Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
+        return read(addr, buffer.template cast<void>());
+    }
+    template<typename T>
+        requires std::negation_v<std::is_same<T, void>>
+    Result write(const StorageAddress &addr, const StorageBuffer<T> &buffer){
+        return write(addr, buffer.template cast<void>());
+    }
+    template<typename T>
+        requires std::negation_v<std::is_same<T, void>>
+    Result commit(const StorageBuffer<T> &buffer){
+        return commit(buffer.template cast<void>());
+    }
+    template<typename T>
+        requires std::negation_v<std::is_same<T, void>>
+    Result commit(const StorageBufferRO<T> &buffer){
+        return commit(buffer.template cast<void>());
+    }
+    template<typename T>
+        requires std::negation_v<std::is_same<T, void>>
+    StorageBuffer<T> writeb(const StorageAddress &addr){
+        return writeb(addr).template cast<T>();
+    }
+    template<typename T>
+        requires std::negation_v<std::is_same<T, void>>
+    StorageBufferRO<T> readb(const StorageAddress &addr){
+        return writeb(addr).template cast<T>();
+    }
 };*/
 
 class DataStorage: public UniqueIDInstance {
 public:
-	struct Stat{
-		//TODO
-	};
-	template<typename T>
-		requires std::negation_v<std::is_same<T, void>>
-	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
-		return read(addr, buffer.template cast<void>());
-	}
+    struct Stat{
+        //TODO
+    };
+    template<typename T>
+        requires std::negation_v<std::is_same<T, void>>
+    Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
+        return read(addr, buffer.template cast<void>());
+    }
 
-	virtual StorageAddress get_static_section() = 0;
-	virtual StorageAddress get_random_address(size_t size) = 0;
-	virtual StorageAddress expand_address(const StorageAddress &address, size_t size) = 0;
+    virtual StorageAddress get_static_section() = 0;
+    virtual StorageAddress get_random_address(size_t size) = 0;
+    virtual StorageAddress expand_address(const StorageAddress &address, size_t size) = 0;
 
-	virtual Result write(const StorageAddress &addr, const StorageBuffer<> &buffer) = 0;
-	virtual Result erase(const StorageAddress &addr) = 0;
-	virtual Result read(const StorageAddress &addr, StorageBuffer<> &buffer) = 0;
+    virtual Result write(const StorageAddress &addr, const StorageBuffer<> &buffer) = 0;
+    virtual Result erase(const StorageAddress &addr) = 0;
+    virtual Result read(const StorageAddress &addr, StorageBuffer<> &buffer) = 0;
 
-	virtual StorageBuffer<> writeb(const StorageAddress &addr) = 0;
-	virtual StorageBufferRO<> readb(const StorageAddress &addr) = 0;
-	virtual Result commit(const StorageBuffer<> &buffer) = 0; //TODO hint where data has been changed?
-	virtual Result commit(const StorageBufferRO<> &buffer) = 0;
+    virtual StorageBuffer<> writeb(const StorageAddress &addr) = 0;
+    virtual StorageBufferRO<> readb(const StorageAddress &addr) = 0;
+    virtual Result commit(const StorageBuffer<> &buffer) = 0; //TODO hint where data has been changed?
+    virtual Result commit(const StorageBufferRO<> &buffer) = 0;
 
-	virtual Stat stat(const StorageAddress &addr) = 0;
+    virtual Stat stat(const StorageAddress &addr) = 0;
 
-	DataStorage(uint32_t id): UniqueIDInstance(id) {
+    DataStorage(uint32_t id): UniqueIDInstance(id) {
         /*	DataStorage(): UniqueIDInstance(GenerateGlobalUniqueID()) {}
-		if(HaveStorageManager()){
+        if(HaveStorageManager()){
             GetGlobalUniqueIDStorage().registerInstance<DataStorage>(*this);
         }*/
-	}
-	virtual ~DataStorage(){}
+    }
+    virtual ~DataStorage(){}
 
     virtual Result serializeImpl(StorageBuffer<> &buffer) const = 0;
-	template<typename T>
+    template<typename T>
     static T deserializeImpl(const StorageBufferRO<> &buffer) {
-		throw std::bad_function_call("Not implemented. Deserializing abstract class");
-	}
+        throw std::bad_function_call("Not implemented. Deserializing abstract class");
+    }
     virtual size_t getSizeImpl() const = 0;
 };
 
 //TODO reorganize
 static inline Result initialize_zero(DataStorage &storage, const StorageAddress &addr){
-	auto buf = storage.writeb(addr);
-	memset(buf.get(), 0, buf.allocated());
-	return storage.commit(buf);
+    auto buf = storage.writeb(addr);
+    memset(buf.get(), 0, buf.allocated());
+    return storage.commit(buf);
 }
 
+#if 0
+template <std::size_t...Idxs>
+constexpr auto substring_as_array(std::string_view str, std::index_sequence<Idxs...>)
+{
+  return std::array{str[Idxs]..., '\n'};
+}
+
+template <typename T>
+constexpr auto type_name_array()
+{
+#if defined(__clang__)
+  constexpr auto prefix   = std::string_view{"[T = "};
+  constexpr auto suffix   = std::string_view{"]"};
+  constexpr auto function = std::string_view{std::source_location{}.function_name()};
+#elif defined(__GNUC__)
+  constexpr auto prefix   = std::string_view{"with T = "};
+  constexpr auto suffix   = std::string_view{"]"};
+  constexpr auto function = std::string_view{std::source_location{}.function_name()};
+#elif defined(_MSC_VER)
+  constexpr auto prefix   = std::string_view{"type_name_array<"};
+  constexpr auto suffix   = std::string_view{">(void)"};
+  constexpr auto function = std::string_view{std::source_location{}.function_name()};
+#else
+# error Unsupported compiler
+#endif
+
+  constexpr auto start = function.find(prefix) + prefix.size();
+  constexpr auto end = function.rfind(suffix);
+
+  static_assert(start < end);
+
+  constexpr auto name = function.substr(start, (end - start));
+  return substring_as_array(name, std::make_index_sequence<name.size()>{});
+}
+
+template <typename T>
+struct type_name_holder {
+  static inline constexpr auto value = type_name_array<T>();
+};
+
+template <typename T>
+constexpr auto type_name() -> std::string_view
+{
+  constexpr auto& value = type_name_holder<T>::value;
+  return std::string_view{value.data(), value.size()};
+}
+#endif
+
+//template<typename T = void>
 struct StaticHeader{
-	uint64_t magic;
-	StorageAddress address;
+    uint64_t magic;
+    StorageAddress address;
+    //TODO serialize deserialize, add type_name<T> check
 };
 
 /*
@@ -167,54 +217,54 @@ using ExampleMRStorage = MultiRankStorage<MemoryStorage, SSDStorage, DiskStorage
 template <typename T...>
 class MultiRankStorage{
 public:
-	
+    
 };
 
 class DataStorage{
 public:
-	struct Stat{
-		//TODO
-	};
-	virtual StorageRawBuffer write_raw_start(const StorageAddress &addr) = 0;
-	virtual Result write_raw_finish(const StorageAddress &addr, const StorageRawBuffer &raw_buffer) = 0;
+    struct Stat{
+        //TODO
+    };
+    virtual StorageRawBuffer write_raw_start(const StorageAddress &addr) = 0;
+    virtual Result write_raw_finish(const StorageAddress &addr, const StorageRawBuffer &raw_buffer) = 0;
 
-	virtual Result write(const StorageAddress &addr, const StorageBuffer &buffer) = 0;
-	virtual Result erase(const StorageAddress &addr) = 0;
+    virtual Result write(const StorageAddress &addr, const StorageBuffer &buffer) = 0;
+    virtual Result erase(const StorageAddress &addr) = 0;
 
-	virtual StorageRawBuffer read_raw_start(const StorageAddress &addr) = 0;
-	virtual Result read_raw_finish(const StorageAddress &addr) = 0;
-	virtual Result read(const StorageAddress &addr, const StorageBuffer &buffer) = 0;
+    virtual StorageRawBuffer read_raw_start(const StorageAddress &addr) = 0;
+    virtual Result read_raw_finish(const StorageAddress &addr) = 0;
+    virtual Result read(const StorageAddress &addr, const StorageBuffer &buffer) = 0;
 
-	virtual Stat stat(const StorageAddress &addr) = 0;
+    virtual Stat stat(const StorageAddress &addr) = 0;
 };
 
 class RankStorage{ //TODO maintain fragmented address space mapping to memory or file
 public:
-	virtual isAvailable(size_t size) = 0;
-	virtual StorageRawBuffer getBuffer(const StorageAddress &addr) = 0;
+    virtual isAvailable(size_t size) = 0;
+    virtual StorageRawBuffer getBuffer(const StorageAddress &addr) = 0;
 };
 
 class RankStorageManager{ //TODO maintain LRU or usage patterns
 public:
-	virtual rotate() = 0; //?
+    virtual rotate() = 0; //?
 };
 
 template <typename R1, typename R2>
 class RankStorage2: public DataStorage{ //TODO maintain address space mapping to R1 and to R2, and synchronized flag
 public:
-	virtual StorageRawBuffer write_raw_start(const StorageAddress &addr) override;
-	virtual Result write_raw_finish(const StorageAddress &addr, const StorageRawBuffer &raw_buffer) override;
+    virtual StorageRawBuffer write_raw_start(const StorageAddress &addr) override;
+    virtual Result write_raw_finish(const StorageAddress &addr, const StorageRawBuffer &raw_buffer) override;
 
-	virtual Result write(const StorageAddress &addr, const StorageBuffer &buffer) override {
+    virtual Result write(const StorageAddress &addr, const StorageBuffer &buffer) override {
 
-	}
-	virtual Result erase(const StorageAddress &addr) override;
+    }
+    virtual Result erase(const StorageAddress &addr) override;
 
-	virtual StorageRawBuffer read_raw_start(const StorageAddress &addr) override;
-	virtual Result read_raw_finish(const StorageAddress &addr) override;
-	virtual Result read(const StorageAddress &addr, const StorageBuffer &buffer) override;
+    virtual StorageRawBuffer read_raw_start(const StorageAddress &addr) override;
+    virtual Result read_raw_finish(const StorageAddress &addr) override;
+    virtual Result read(const StorageAddress &addr, const StorageBuffer &buffer) override;
 
-	virtual Stat stat(const StorageAddress &addr) override;
+    virtual Stat stat(const StorageAddress &addr) override;
 };
 
 template <typename T>
@@ -225,27 +275,27 @@ public:
 
 
 class enum Result{
-	Success,
-	Failure,
+    Success,
+    Failure,
 
-	bool isSuccess() const{
-		return *this == Success;
-	}
+    bool isSuccess() const{
+        return *this == Success;
+    }
 };
 
 struct StorageBuffer{
-	void *data;
-	size_t size;
+    void *data;
+    size_t size;
 };
 
 struct StorageRawBuffer{
-	//TODO things to give direct access
+    //TODO things to give direct access
 }
 
 //generic virtual file system
 struct StorageAddress{
-	uint64_t offset;
-	size_t size;
+    uint64_t offset;
+    size_t size;
 };
 
 //Addressing raw bytes

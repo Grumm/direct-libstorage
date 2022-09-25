@@ -41,6 +41,11 @@ template <typename T>
 concept CDeserializeImpl = dsptr_T<decltype(&T::deserializeImpl)>::value;
 
 template<typename T>
+concept CSerializableFixedSize = requires{
+    { std::bool_constant<(T{}.getSizeImpl(), true)>() } -> std::same_as<std::true_type>;
+};
+
+template<typename T>
 concept CSerializableImpl = requires(const T &t, StorageBuffer<> &buffer,
                                      const StorageBufferRO<> &ro_buffer){
     { t.getSizeImpl() } -> std::convertible_to<std::size_t>;
