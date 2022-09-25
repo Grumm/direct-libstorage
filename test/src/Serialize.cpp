@@ -207,6 +207,25 @@ TEST(SerializeTest, SimpleTupleSerializeDeserialize){
     EXPECT_EQ(std::get<2>(tuple_res), 'L');
 }
 
+TEST(SerializeTest, SimpleTupleOfOneSerializeDeserialize){
+    SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+
+    std::tuple<char> tuple1{'D'};
+    StorageAddress addr = serialize<StorageAddress>(storage, tuple1);
+    auto tuple_res = deserialize<decltype(tuple1)>(storage, addr);
+    EXPECT_EQ(std::get<0>(tuple_res), 'D');
+}
+
+TEST(SerializeTest, SimplePairOfTupleOfOneSerializeDeserialize){
+    SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+
+    std::pair<std::tuple<char>, int> pt1{{'D'}, 3};
+    StorageAddress addr = serialize<StorageAddress>(storage, pt1);
+    auto tuple_res = deserialize<decltype(pt1)>(storage, addr);
+    EXPECT_EQ(std::get<0>(pt1.first), 'D');
+    EXPECT_EQ(pt1.second, 3);
+}
+
 TEST(SerializeTest, ComplexTupleSerializeDeserialize){
     SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
 

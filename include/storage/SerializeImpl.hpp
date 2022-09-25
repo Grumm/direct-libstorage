@@ -81,21 +81,25 @@ size_t size(const T &t){
 
 template<CSerializableImpl T, typename U>
 constexpr Result s(const T &t, StorageBuffer<U> &buffer){
+    LOG("Serialize: %s", typeid(T).name());
     return t.template serializeImpl(buffer.template cast<void>());
 }
 
 template<CBuiltinSerializable T, typename U>
 constexpr Result s(const T &t, StorageBuffer<U> &buffer){
+    LOG("BSerialize: %s", typeid(T).name());
     return BuiltinSerializeImpl<std::remove_cvref_t<T>>{t}.template serializeImpl(buffer.template cast<void>());
 }
 
 template<CSerializableImpl T, typename U, typename ...Args>
 T d(const StorageBufferRO<U> &buffer, Args&&... args) {
+    LOG("Deserialize: %s", typeid(T).name());
     return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...);
 }
 
 template<CBuiltinSerializable T, typename U, typename ...Args>
 T d(const StorageBufferRO<U> &buffer, Args&&... args) {
+    LOG("BDeserialize: %s", typeid(T).name());
     return BuiltinSerializeImpl<std::remove_cvref_t<T>>::
         deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...).getObj();
 }
