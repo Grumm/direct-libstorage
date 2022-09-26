@@ -9,114 +9,133 @@
 #include <storage/SerializeImpl.hpp>
 
 template <typename T>
-class BSIObjectWrapper{
-    const T *obj;
-    std::array<uint8_t, sizeof(T)> data;
+class BSIObjectWrapperSerialize{
+    const T &obj;
 public:
-    BSIObjectWrapper(const T &obj): obj(&obj) {}
-    BSIObjectWrapper(const T *obj): obj(obj) {}
-    template<typename ...Args>
-    BSIObjectWrapper(Args &&...args): obj(new (data.data()) T(std::forward<Args>(args)...)) {}
+    BSIObjectWrapperSerialize(const T &obj): obj(obj) {}
 
-    const T *getObjPtr() const{ return obj; }
-    const T getObj() const{ return *obj; }
+    const T getObj() const{ return obj; }
+    const T &getObjRef() const{ return obj; }
 };
 
+template <typename T>
+class BSIObjectWrapperDeserialize{
+    //const T *obj{nullptr};
+protected:
+    const StorageBufferRO<> buffer;
+public:
+    BSIObjectWrapperDeserialize(const StorageBufferRO<> &buffer): buffer(buffer) {}
+
+    static BuiltinDeserializeImpl<T> deserializeImpl(const StorageBufferRO<> &buffer) {
+        return BuiltinDeserializeImpl<T>{buffer};
+    }
+    T getObj() = delete;
+};
+
+/************************/
 template<typename T>
     requires std::is_trivially_copyable_v<T>
-class BuiltinSerializeImpl<T>: public BSIObjectWrapper<T>{
+class BuiltinSerializeImpl<T>: public BSIObjectWrapperSerialize<T>{
     using T_NoConst = std::remove_const_t<T>;
 public:
-    BuiltinSerializeImpl(const T &obj): BSIObjectWrapper<T>(obj) {}
-    BuiltinSerializeImpl(const T *obj): BSIObjectWrapper<T>(obj) {}
+    BuiltinSerializeImpl(const T &obj): BSIObjectWrapperSerialize<T>(obj) {}
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
         T_NoConst *t = buffer.template get<T_NoConst>();
-        *t = *this->template getObjPtr();
+        *t = this->template getObj();
         return Result::Success;
     }
-    static BuiltinSerializeImpl<T> deserializeImpl(const StorageBufferRO<> &buffer) {
-        const T *t = buffer.template get<T>();
-        return BuiltinSerializeImpl<T>{t};
-    }
-    size_t getSizeImpl() const {
+    constexpr size_t getSizeImpl() const {
         return sizeof(T);
     }
 };
 
-template<>
-class BuiltinSerializeImpl<std::string>: public BSIObjectWrapper<std::pair<const char *, size_t>>{
-    using T = std::string;
-    using U = std::pair<const char *, size_t>;
-    const T *obj{nullptr};
+template<typename T>
+    requires std::is_trivially_copyable_v<T>
+class BuiltinDeserializeImpl<T>: public BSIObjectWrapperDeserialize<T>{
 public:
-    BuiltinSerializeImpl(const T &obj): BSIObjectWrapper<U>(nullptr, 0), obj(&obj) {}
-    BuiltinSerializeImpl(const char *c_str, size_t len): BSIObjectWrapper<U>(c_str, len) {}
+    T getObj() const {
+        return *this->buffer.template get<T>();
+    }
+};
+
+/************************/
+
+template<>
+class BuiltinSerializeImpl<std::string>: public BSIObjectWrapperSerialize<std::string>{
+    using T = std::string;
+public:
+    BuiltinSerializeImpl(const T &obj): BSIObjectWrapperSerialize<T>(obj) {}
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
         char *s = buffer.get<char>();
-        std::strncpy(s, obj->c_str(), buffer.size());
+        ::strncpy(s, this->getObjRef().c_str(), buffer.size());
         return Result::Success;
     }
-    static BuiltinSerializeImpl<T> deserializeImpl(const StorageBufferRO<> &buffer) {
-        // removing trailing \0
-        return BuiltinSerializeImpl(buffer.get<const char>(), buffer.size() - 1);
-    }
     size_t getSizeImpl() const {
-        if(obj == nullptr)
-            return this->getObjPtr()->second + 1;
-        else 
-            return obj->length() + 1;
-    }
-    const std::string getObj() const {
-        if(obj == nullptr){
-            auto [c_str, len] = *this->getObjPtr();
-            return std::string{c_str, ::strnlen(c_str, len)};
-        } else {
-            return *obj;
-        }
+        return this->getObjRef().length() + 1;
     }
 };
 
+template<>
+class BuiltinDeserializeImpl<std::string>: public BSIObjectWrapperDeserialize<std::string>{
+public:
+    std::string getObj() const {
+        // removing trailing \0
+        auto cstr = this->buffer.get<const char>();
+        auto len = ::strnlen(cstr, buffer.size() - 1);
+        //auto len = buffer.size() - 1;
+        return std::string{cstr, len};
+    }
+};
+
+/************************/
+
 template<CSerializable F, CSerializable S>
-class BuiltinSerializeImpl<std::pair<F, S>>: public BSIObjectWrapper<std::pair<F, S>>{
+class BuiltinSerializeImpl<std::pair<F, S>>: public BSIObjectWrapperSerialize<std::pair<F, S>>{
     using T = std::pair<F, S>;
 public:
-    BuiltinSerializeImpl(const T &obj): BSIObjectWrapper<T>(obj) {}
-    BuiltinSerializeImpl(const F &f, const S &s): BSIObjectWrapper<T>(f, s) {}
+    BuiltinSerializeImpl(const T &obj): BSIObjectWrapperSerialize<T>(obj) {}
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
         Result res = Result::Success;
 
         size_t offset = 0;
-        auto *obj = this->template getObjPtr();
-        StorageBuffer buf = buffer.offset_advance(offset, szeimpl::size(obj->first));
-        res = szeimpl::s(obj->first, buf);
-        buf = buffer.offset_advance(offset, szeimpl::size(obj->second));
-        res = szeimpl::s(obj->second, buf);
+        const auto &obj = this->template getObjRef();
+        StorageBuffer buf = buffer.offset_advance(offset, szeimpl::size(obj.first));
+        res = szeimpl::s(obj.first, buf);
+        buf = buffer.offset_advance(offset, szeimpl::size(obj.second));
+        res = szeimpl::s(obj.second, buf);
 
         return res;
     }
-    static BuiltinSerializeImpl<T> deserializeImpl(const StorageBufferRO<> &buffer) {
+    constexpr size_t getSizeImpl() const {
+        size_t sum = 0;
+        std::apply([&sum](auto&&... arg){
+            ((sum += szeimpl::size(arg)),
+            ...);
+        }, this->template getObjRef());
+        return sum;
+    }
+};
+
+template<CSerializable F, CSerializable S>
+class BuiltinDeserializeImpl<std::pair<F, S>>: public BSIObjectWrapperDeserialize<std::pair<F, S>>{
+    using T = std::pair<F, S>;
+public:
+    T getObj() const {
         size_t offset = 0;
+        auto buffer = this->buffer;
         StorageBufferRO buf = buffer;
         F f = szeimpl::d<F>(buf);
         buffer.offset_advance(offset, szeimpl::size(f));
         buf = buffer.offset(offset, buffer.size() - offset);
         S s = szeimpl::d<S>(buf);
 
-        return BuiltinSerializeImpl{f, s};
-    }
-    size_t getSizeImpl() const {
-        size_t sum = 0;
-        std::apply([&sum](auto&&... arg){
-            ((sum += szeimpl::size(arg)),
-            ...);
-        }, *this->template getObjPtr());
-        return sum;
+        return std::make_pair(f, s);
     }
 };
 
@@ -176,24 +195,22 @@ constexpr decltype(auto) tuple_apply(F&& f, Tuple&& t) {
     return tuple_apply_impl(std::forward<F>(f), std::forward<Tuple>(t), Indices{});
 }
 
-/******************/
-
 template<typename U, typename T, size_t... I>
 static U instantiate_from_tuple_impl(T &&t, std::index_sequence<I...>){
     return U{std::get<I>(std::forward<T>(t))...};
 }
-
 template<typename U, typename T, size_t... I>
 static U instantiate_from_tuple(T &&t){
     return instantiate_from_tuple_impl<U>(std::forward<T>(t), std::make_index_sequence<std::tuple_size<T>::value>());
 }
 
+/******************/
+
 template<CSerializable ...TArgs>
-class BuiltinSerializeImpl<std::tuple<TArgs...>>: public BSIObjectWrapper<std::tuple<TArgs...>>{
+class BuiltinSerializeImpl<std::tuple<TArgs...>>: public BSIObjectWrapperSerialize<std::tuple<TArgs...>>{
     using T = std::tuple<TArgs...>;
 public:
-    BuiltinSerializeImpl(const T &obj): BSIObjectWrapper<T>(obj) {}
-    BuiltinSerializeImpl(TArgs && ...args): BSIObjectWrapper<T>(std::forward<TArgs>(args)...) {}
+    BuiltinSerializeImpl(const T &obj): BSIObjectWrapperSerialize<T>(obj) {}
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
@@ -206,28 +223,15 @@ public:
                 res = szeimpl::s<std::remove_cvref_t<decltype(arg)>>(arg, buf) /*TODO res && */
             ),
                 ...);
-        }, *this->template getObjPtr());
+        }, this->template getObjRef());
         return res;
     }
 
+#if 0
     template<size_t... I>
     static BuiltinSerializeImpl<T> instantiateFromTuple(T &&t, std::index_sequence<I...>){
         return BuiltinSerializeImpl<T>{std::get<I>(std::forward<T>(t))...};
     }
-
-    static BuiltinSerializeImpl<T> deserializeImpl(const StorageBufferRO<> &buffer) {
-        size_t offset = 0;
-        StorageBufferRO buf = buffer;
-        auto deserialize_argument = [&buf, buffer, &offset]<typename T>() -> T{
-            buf = buffer.offset(offset, buffer.size() - offset);
-            T t = szeimpl::d<T>(buf);
-            offset += szeimpl::size(t);
-            return t;
-        };
-        auto tuple = tuple_create<T>(deserialize_argument);
-        return instantiate_from_tuple<BuiltinSerializeImpl<T>>(std::move(tuple));
-    }
-#if 0
     template<CSerializable ...TArgs>
     static BuiltinSerializeImpl<std::tuple<TArgs...>> deserializeImpl(const StorageBufferRO<> &buffer) {
         size_t offset = 0;
@@ -245,15 +249,35 @@ public:
         return BuiltinSerializeImpl{tuple};
     }
 #endif
-    size_t getSizeImpl() const {
+    constexpr size_t getSizeImpl() const {
         size_t sum = 0;
         std::apply([&sum](auto&&... arg){
             ((sum += szeimpl::size(arg)),
             ...);
-        }, *this->template getObjPtr());
+        }, this->template getObjRef());
         return sum;
     }
 };
+
+template<CSerializable ...TArgs>
+class BuiltinDeserializeImpl<std::tuple<TArgs...>>: public BSIObjectWrapperDeserialize<std::tuple<TArgs...>>{
+    using T = std::tuple<TArgs...>;
+public:
+    T getObj() const {
+        size_t offset = 0;
+        auto buffer = this->buffer;
+        StorageBufferRO buf = buffer;
+        auto deserialize_argument = [&buf, buffer, &offset]<typename T>() -> T{
+            buf = buffer.offset(offset, buffer.size() - offset);
+            T t = szeimpl::d<T>(buf);
+            offset += szeimpl::size(t);
+            return t;
+        };
+        return tuple_create<T>(deserialize_argument);
+    }
+};
+
+/*****************************/
 
 template<CSerializable T>
 class BuiltinSerializeImpl<std::unique_ptr<T>>{
@@ -262,13 +286,17 @@ public:
     Result serializeImpl(StorageBuffer<> &buffer) const {
         return Result::Success;
     }
-    static BuiltinSerializeImpl<std::unique_ptr<T>> deserializeImpl(const StorageBufferRO<> &buffer) {
-        return BuiltinSerializeImpl{std::unique_ptr<T>{}};
-    }
-    size_t getSizeImpl() const {
+    constexpr size_t getSizeImpl() const {
         return 0;
     }
-    const std::unique_ptr<T> &getObj() const { return std::unique_ptr<T>{}; }
+};
+
+template<CSerializable T>
+class BuiltinDeserializeImpl<std::unique_ptr<T>>: BSIObjectWrapperDeserialize<std::unique_ptr<T>>{
+public:
+    std::unique_ptr<T> getObj(const StorageBufferRO<> &) const{
+        return std::unique_ptr<T>{};
+    }
 };
 
 #if 0

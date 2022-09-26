@@ -36,7 +36,7 @@ concept CRMAImpl = requires(T &t, size_t offset, size_t size, StorageBuffer<> &b
     { t.readb(offset, size) } -> std::same_as<StorageBufferRO<>>;
 };
 template<typename T>
-concept CRMA = CRMAImpl<T> && CSerializableImpl<T>;
+concept CRMA = CRMAImpl<T> && CSerializable<T>;
 
 template<size_t MAX_FILESIZE_OFFSET = 32> //4GiB
 class FileRMA{
@@ -176,7 +176,7 @@ public:
 
         return FileRMA<MAX_FILESIZE_OFFSET>{szeimpl::d<decltype(filename)>(buf)};
     }
-    size_t getSizeImpl() const{
+    constexpr size_t getSizeImpl() const{
         return szeimpl::size(MAX_FILESIZE_OFFSET) + szeimpl::size(filename);
     }
 };

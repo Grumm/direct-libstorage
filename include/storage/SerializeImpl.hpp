@@ -33,12 +33,29 @@ concept TupleLike = requires (T a) {
     std::get<0>(a);
 };
 
+#if 0
 template <typename>
 struct dsptr_T : std::false_type {};
 template <typename T, typename ...Args>
-struct dsptr_T<T(T::*)(const StorageBufferRO<> &, Args...)> : std::true_type {};
+struct dsptr_T<T(*)(const StorageBufferRO<> &, Args...)> : std::true_type {};
 template <typename T>
-concept CDeserializeImpl = dsptr_T<decltype(&T::deserializeImpl)>::value;
+struct dsptr_T<T(*)(const StorageBufferRO<> &)> : std::true_type {};
+template <typename T>
+concept CDeserializableImpl = dsptr_T<decltype(&T::deserializeImpl)>::value;
+
+#else
+template<typename T, typename ...Args>
+concept CDeserializableImpl1 = requires(const T &t, const StorageBufferRO<> &buffer, Args... args){
+    { T::deserializeImpl(buffer, std::forward<Args>(args)...) } -> std::same_as<T>;
+};
+template<typename T, typename ...Args>
+concept CDeserializableImpl2 = requires(const T &t, const StorageBufferRO<> &buffer, Args... args){
+    { T::deserializeImpl(buffer) } -> std::same_as<T>;
+};
+
+template<typename T, typename ...Args>
+concept CDeserializableImpl = CDeserializableImpl1<T, Args...> || CDeserializableImpl2<T>;
+#endif
 
 template<typename T>
 concept CSerializableFixedSize = requires{
@@ -50,19 +67,28 @@ concept CSerializableImpl = requires(const T &t, StorageBuffer<> &buffer,
                                      const StorageBufferRO<> &ro_buffer){
     { t.getSizeImpl() } -> std::convertible_to<std::size_t>;
     { t.serializeImpl(buffer) } -> std::same_as<Result>;
-    CDeserializeImpl<T>;
     //{ T::deserializeImpl(ro_buffer, auto...) } -> std::same_as<T>;
 };
+
 template<typename T>
 concept CBuiltinSerializable = (std::is_same_v<T, std::string>
                                 || TupleLike<T>
                                 || std::is_trivially_copyable_v<T>) && !CSerializableImpl<T>;
-template<typename T>
-concept CSerializable = CBuiltinSerializable<T> || CSerializableImpl<T>;
+
+template<typename T, typename ...Args>
+concept CBuiltinDeserializable = (std::is_same_v<T, std::string>
+                                || TupleLike<T>
+                                || std::is_trivially_copyable_v<T>) && !CDeserializableImpl<T, Args...>;
+template<typename T, typename ...Args>
+concept CSerializable = (CBuiltinSerializable<T> || CSerializableImpl<T>)
+                                && (CBuiltinDeserializable<T> || CDeserializableImpl<T, Args...>);
 
 /****************************************************/
 template<typename T>
 class BuiltinSerializeImpl;
+
+template<typename T>
+class BuiltinDeserializeImpl;
 
 template<typename T>
 using base_type = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
@@ -91,16 +117,18 @@ constexpr Result s(const T &t, StorageBuffer<U> &buffer){
     return BuiltinSerializeImpl<std::remove_cvref_t<T>>{t}.template serializeImpl(buffer.template cast<void>());
 }
 
-template<CSerializableImpl T, typename U, typename ...Args>
+template<typename T, typename U, typename ...Args>
+requires CDeserializableImpl<T, Args...>
 T d(const StorageBufferRO<U> &buffer, Args&&... args) {
     LOG("Deserialize: %s", typeid(T).name());
     return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...);
 }
 
-template<CBuiltinSerializable T, typename U, typename ...Args>
+template<typename T, typename U, typename ...Args>
+requires CBuiltinDeserializable<T, Args...>
 T d(const StorageBufferRO<U> &buffer, Args&&... args) {
     LOG("BDeserialize: %s", typeid(T).name());
-    return BuiltinSerializeImpl<std::remove_cvref_t<T>>::
+    return BuiltinDeserializeImpl<std::remove_cvref_t<T>>::
         deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...).getObj();
 }
 
@@ -111,7 +139,11 @@ T d(const StorageBufferRO<U> &buffer, Args&&... args) {
 template<typename T>
 class BuiltinSerializeImpl{
 public:
-    BuiltinSerializeImpl(const T *obj) {}
+};
+
+template<typename T>
+class BuiltinDeserializeImpl{
+public:
 };
 
 /****************************************************/
