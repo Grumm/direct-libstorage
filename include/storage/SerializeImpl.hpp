@@ -1,6 +1,8 @@
 #pragma once
 
 #include <type_traits>
+#include <vector>
+#include <functional>
 
 #include <storage/Utils.hpp>
 #include <storage/StorageUtils.hpp>
@@ -32,6 +34,16 @@ concept TupleLike = requires (T a) {
     std::tuple_size<T>::value;
     std::get<0>(a);
 };
+
+template<typename T>
+concept sized_forward_range = std::ranges::sized_range<T> && std::ranges::forward_range<T>;
+
+//template<typename T>
+//concept CSerializableRange = sized_forward_range<T> && CSerializable<std::ranges::range_value_t<T>>;
+//cannot do recursive Concepts, so using type traits
+
+template <typename T>
+struct is_serializable_range : std::false_type { };
 
 #if 0
 template <typename>
@@ -72,16 +84,26 @@ concept CSerializableImpl = requires(const T &t, StorageBuffer<> &buffer,
 
 template<typename T>
 concept CBuiltinSerializable = (std::is_same_v<T, std::string>
+                                || std::is_same_v<T, std::vector<bool>>
+                                || is_serializable_range<T>::value
                                 || TupleLike<T>
                                 || std::is_trivially_copyable_v<T>) && !CSerializableImpl<T>;
 
 template<typename T, typename ...Args>
 concept CBuiltinDeserializable = (std::is_same_v<T, std::string>
+                                || std::is_same_v<T, std::vector<bool>>
+                                || is_serializable_range<T>::value
                                 || TupleLike<T>
                                 || std::is_trivially_copyable_v<T>) && !CDeserializableImpl<T, Args...>;
 template<typename T, typename ...Args>
 concept CSerializable = (CBuiltinSerializable<T> || CSerializableImpl<T>)
                                 && (CBuiltinDeserializable<T> || CDeserializableImpl<T, Args...>);
+
+template <typename T>
+requires sized_forward_range<T> && CSerializable<std::ranges::range_value_t<T>>
+struct is_serializable_range<T> : std::true_type { };
+
+template <typename T> concept CSerializableRange = is_serializable_range<T>::value;
 
 /****************************************************/
 template<typename T>

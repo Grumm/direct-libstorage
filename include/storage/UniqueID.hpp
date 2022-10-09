@@ -131,6 +131,7 @@ public:
         }
         return uid;
     }
+    static UniqueIDStorage<T> deserializeImpl(const StorageBufferRO<> &buffer) { throw std::bad_function_call("Not implemented"); };
     size_t getSizeImpl() const {
         typename decltype(m)::size_type s{0};
         size_t sum = szeimpl::size(max_id) + szeimpl::size(s);

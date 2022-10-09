@@ -135,109 +135,46 @@ public:
 //TODO serialize etc.
 };
 
-template<CSerializable T, CStorageImpl Storage, AllocationPattern A = AllocationPattern::Default, size_t MAX_OBJS = std::numeric_limits<size_t>::max()>
-class ObjectStorage{
-    Storage &storage;
-    StaticHeader<T> header;
-    ObjectStorageImpl obj_storage_impl;
-
-    static constexpr uint32_t OS_MAGIC = 0xF4E570F3;
-    static constexpr size_t DEFAULT_ALLOC_SIZE = (1 << 32); //4GB
-
-    void init_objstorage(){
-        ASSERT_ON(header.size < szeimpl::size(StaticHeader<T>{}));
-        if(header.magic != OS_MAGIC){
-            //new
-            header.magic = OS_MAGIC;
-            header.address = storage.template get_random_address(DEFAULT_ALLOC_SIZE);
-        } else {
-            //deserialize
-            obj_storage_impl = deserialize<ObjectStorageImpl<T, Storage, MAX_OBJS>>(storage, header.address);
-        }
-    }
+/*
+template<typename T>
+class SimpleObjectStorage{
 public:
-    ObjectStorage(Storage &storage, StorageAddress &addr): 
-        storage(storage),
-        header_address(addr),
-        header(deserialize<StaticHeader<T>>(storage, header_address)) {
-            init_objstorage();
-    }
+    SimpleObjectStorage(Storage &storage, StorageAddress base) {}
+    constexpr ObjectStorageAccess DefaultAccess = ObjectStorageAccess::Once;
+    bool has(size_t index) const {
 
-    //create all objects [index_start, index_finish]
-    void prefetch(size_t index_start, size_t index_finish){
-        for(size_t i = index_start; i <= index_finish; i++){
-            if(obj_storage_impl.has(i))
-                obj_storage_impl.get(i, false);
-        }
     }
-    void prefetch_all(){
-        if(obj_count > 0)
-            prefetch(0, obj_count - 1);
+    size_t size() const {
+        return states[index]
     }
-    //delete all objects from
-    void clear(size_t index_start, size_t index_finish){
-        for(size_t i = index_start; i <= index_finish; i++){
-            obj_storage_impl.clear(i);
-        }
-    }
-    void clear_all(){
-        if(obj_count > 0)
-            clear(0, obj_count - 1);
-    }
+    T get(size_t index, ObjectStorageAccess access){
 
-    //return object deserialized from that address
-    template<typename U = T>
-    U getVal(size_t index, bool nocache = false){
-        ASSERT_ON(!obj_storage_impl.has(index));
-        return static_cast<U>(obj_storage_impl.get(index, nocache));
     }
+    T &getRef(size_t index, ObjectStorageAccess access){
 
-    //get ref to object, owned by Object Storage
-    template<typename U = T>
-    U &getRef(size_t index, bool nocache = false){
-        ASSERT_ON(!obj_storage_impl.has(index));
-        return static_cast<U &>(obj_storage_impl.get(index, nocache));
     }
+    const T &getCRef(size_t index, ObjectStorageAccess access){
 
-    //serialize object, return index
-    template<typename ...Args>
-    size_t put(const T &t, Args&&... args){
-        return obj_storage_impl.put(std::forward<T>(t), std::forward<Args>(args)...);
     }
+    void clear(size_t start, size_t end){
 
-    //serialize object, return index
-    size_t put(T &&t){
-        return obj_storage_impl.put(std::forward<T>(t));
     }
-
-    //serialize object at index
-    void put(const T &t, size_t index){
-        ASSERT_ON(index >= MAX_OBJS);
-        obj_storage_impl.put(std::forward<T>(t), index);
-    }
-    void put(T &&t, size_t index){
-        ASSERT_ON(index >= MAX_OBJS);
-        obj_storage_impl.put(std::forward<T>(t), index);
-    }
-
-    //keep objects
-    template<typename F, typename R = void>
-    requires std::invocable<F, T>
-    R for_each(F &f){
+    size_t put(const T &t){
         
     }
-
-    //delete objects right after f()
-    template<typename F, typename R = void>
-    requires std::invocable<F, T>
-    R for_each_once(F &f){
+    void put(const T &t, size_t index,){
         
     }
-
-    size_t size() const{
-        return obj_count;
+    size_t put(const T &&t, ObjectStorageAccess access){
+        
+    }
+    void put(const T &&t, size_t index, ObjectStorageAccess access){
+        
     }
 };
+*/
+
+/***************************/
 
 #if 0
 template<CSerializable T, size_t MAX_OBJS>

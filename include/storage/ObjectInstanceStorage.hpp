@@ -18,6 +18,7 @@ Two different implementations:
 
 
 //where to keep all the instances
+//two pools: one we allocate the range, another is where we allocate single instance
 template<typename T, AllocationPattern A = AllocationPattern::Default, size_t MAX_OBJS = std::numeric_limits<size_t>::max()>
 //requires CSerializableFixedSize<T>
 class ObjectInstanceStorage{
@@ -192,3 +193,24 @@ public:
         return false;
     }
 };
+
+/*
+ObjectInstanceStorage can have multiple implementations. Idea: make it an interface
+
+Purpose:
+* to have ability to control lifetime and allocation of objects
+* to be able to keep objects in memory and in the storage
+* provide control over the objects to the user
+
+Key features:
+* add object at index - although do we need this feature, this could be a constraint
+* add mutiple object within index range
+* add multiple objects at the end of storage
+* del objects within index range
+* get std::array of objects
+
+Performance features
+* minimalistic implementation to get/add object - const time for item in range
+* serialization/deserialization
+* 
+*/

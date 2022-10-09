@@ -324,7 +324,7 @@ public:
     }
     virtual StorageBufferRO<> readb(const StorageAddress &addr) override{
         auto [offset, size] = mapping.lookup(addr.addr, addr.size, true);
-        ASSERT_ON(size > addr.size);
+        ASSERT_ON(size < addr.size);
         ASSERT_ON(offset == 0);
         return rma.readb(offset, addr.size);
     }

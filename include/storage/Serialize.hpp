@@ -21,11 +21,11 @@ namespace sze{
         return obj;
     }
 #endif
-    template<CSerializableImpl T>
+    template<CSerializable T>
     size_t getSize(const T &obj){
         return szeimpl::size(obj);
     }
-    template<CSerializableImpl T>
+    template<CSerializable T>
     void serialize(const T &obj, DataStorage &storage, StorageAddress &address){
         size_t size = getSize<T>(obj);
 
@@ -40,19 +40,12 @@ namespace sze{
         szeimpl::s(obj, buffer);
         storage.commit(buffer);
     }
-    template<CSerializableImpl T>
+    template<CSerializable T>
     StorageAddress serialize(const T &obj, DataStorage &storage) {
         StorageAddress address;
         serialize(obj, storage, address);
         return address;
     }
-    template<typename F> //TODO move to Util
-    class ScopeDestructor{
-        F f;
-    public:
-        ScopeDestructor(F &&f): f(std::forward<F>(f)) {}
-        ~ScopeDestructor(){ f(); }
-    };
 
     template<typename T, typename ...Args>
     requires CDeserializableImpl<T, Args...>

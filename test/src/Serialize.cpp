@@ -242,4 +242,45 @@ TEST(SerializeTest, ComplexTupleSerializeDeserialize){
     EXPECT_EQ(pod_res, pod1);
 }
 
+TEST(SerializeTest, VectorBoolSerializeDeserialize){
+    SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+
+    std::vector<bool> vb;
+    vb.resize(100, false);
+    vb[10] = true;
+    vb[50] = true;
+    vb[80] = true;
+
+    StorageAddress addr = serialize<StorageAddress>(storage, vb);
+    auto vb_res = deserialize<decltype(vb)>(storage, addr);
+    EXPECT_TRUE(vb_res[10]);
+    EXPECT_TRUE(vb_res[50]);
+    EXPECT_TRUE(vb_res[80]);
+    vb_res[10] = false; vb_res[50] = false; vb_res[80] = false;
+    for(size_t i = 0; i < vb_res.size(); i++){
+        EXPECT_FALSE(vb_res[i]);
+    }
+}
+
+TEST(SerializeTest, VectorIntSerializeDeserialize){
+    SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+
+    std::vector<int> vb;
+    vb.resize(100, 0);
+    vb[10] = 10;
+    vb[50] = 50;
+    vb[80] = 80;
+
+    StorageAddress addr = serialize<StorageAddress>(storage, vb);
+    auto vb_res = deserialize<decltype(vb)>(storage, addr);
+    EXPECT_EQ(vb_res[10], 10);
+    EXPECT_EQ(vb_res[50], 50);
+    EXPECT_EQ(vb_res[80], 80);
+
+    vb_res[10] = 0; vb_res[50] = 0; vb_res[80] = 0;
+    for(size_t i = 0; i < vb_res.size(); i++){
+        EXPECT_EQ(vb_res[i], 0);
+    }
+}
+
 }

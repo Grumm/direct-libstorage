@@ -64,3 +64,11 @@ uint8_t MostSignificantBitSet(T v){
 #error "Unsupported CLZ command"
 #endif
 }
+
+template<typename F>
+class ScopeDestructor{
+	F f;
+public:
+	ScopeDestructor(F &&f): f(std::forward<F>(f)) {}
+	~ScopeDestructor(){ f(); }
+};

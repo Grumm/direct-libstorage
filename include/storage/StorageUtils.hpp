@@ -21,9 +21,13 @@ struct StorageAddress{
 	bool is_null() const { return addr == NULL_ADDR; }
 	void reset() { addr = NULL_ADDR; size = 0; }
 
-	StorageAddress subrange(size_t offset, size_t newsize) const {
-		ASSERT_ON(size < offset + newsize);
-		return StorageAddress{addr + offset, newsize};
+	StorageAddress offset(size_t _offset) const {
+		ASSERT_ON(size < _offset);
+		return StorageAddress{addr + _offset, size - _offset};
+	}
+	StorageAddress subrange(size_t _offset, size_t newsize) const {
+		ASSERT_ON(size < _offset + newsize);
+		return StorageAddress{addr + _offset, newsize};
 	}
 };
 
@@ -224,6 +228,13 @@ enum class AllocationPattern{
     Random,
     Ranges,
     Default = Sequential,
+};
+
+enum class ObjectStorageAccess{
+	Once, //Object must be released after access, unless overriden by Keep/Caching before that
+	Caching, //up to implementation
+	Keep, //object must be kept until clear() is called
+	Default = Caching,
 };
 
 

@@ -3,8 +3,11 @@
 #include <memory>
 #include <cstring>
 #include <functional>
+#include <vector>
 #include <array>
 #include <bit>
+#include <ranges>
+#include <algorithm>
 
 #include <storage/SerializeImpl.hpp>
 
@@ -298,6 +301,182 @@ public:
         return std::unique_ptr<T>{};
     }
 };
+
+
+/************************/
+
+template<>
+class BuiltinSerializeImpl<std::vector<bool>>: public BSIObjectWrapperSerialize<std::vector<bool>>{
+    using T = std::vector<bool>;
+    using StoredType = uint64_t;
+    static constexpr size_t StoredSize = sizeof(StoredType) * 8;
+public:
+    BuiltinSerializeImpl(const T &obj): BSIObjectWrapperSerialize<T>(obj) {}
+
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
+        Result res = Result::Success;
+        size_t offset = 0;
+        const auto &obj = this->getObjRef();
+        StorageBuffer buf;
+
+        size_t size = obj.size();
+        size += StoredSize * !!(size % StoredSize) - (size % StoredSize);
+        buf = buffer.offset_advance(offset, szeimpl::size(size));
+        res = szeimpl::s(size, buf);
+        
+        size = obj.size();
+        for(size_t i = 0; i < size; i += StoredSize){
+            StoredType val = 0;
+            size_t num_bits = StoredSize;
+            if (size - i < StoredSize){
+                num_bits = size - i;
+            }
+            for(size_t j = 0; j < num_bits; j++){
+                if (obj[i + j]){
+                    val |= (1ULL << j);
+                }
+            }
+            buf = buffer.offset_advance(offset, szeimpl::size(val));
+            res = szeimpl::s(val, buf);
+        }
+
+        return res;
+    }
+    size_t getSizeImpl() const {
+        const auto &obj = this->getObjRef();
+        size_t size = obj.size();
+        size = size / StoredSize + !!(size % StoredSize);
+        return szeimpl::size(size) + szeimpl::size(StoredType{}) * size;
+    }
+};
+
+template<>
+class BuiltinDeserializeImpl<std::vector<bool>>: public BSIObjectWrapperDeserialize<std::vector<bool>>{
+    using T = std::vector<bool>;
+    using StoredType = uint64_t;
+    static constexpr size_t StoredSize = sizeof(StoredType) * 8;
+public:
+    T getObj() const {
+        size_t offset = 0;
+        auto buffer = this->buffer;
+        StorageBufferRO buf = buffer;
+        T vec;
+
+        size_t size = szeimpl::d<size_t>(buf);
+        vec.resize(size, false);
+        buffer.offset_advance(offset, szeimpl::size(size));
+        buf = buffer.offset(offset, buffer.size() - offset);
+        
+        for(size_t i = 0; i < size; i += StoredSize){
+            StoredType chunk = szeimpl::d<StoredType>(buf);
+            for(size_t j = 0; j < StoredSize; j++){
+                if(chunk & (1ULL << j)){
+                    vec[i + j] = true;
+                }
+            }
+            buffer.offset_advance(offset, szeimpl::size(chunk));
+            buf = buffer.offset(offset, buffer.size() - offset);
+        }
+
+        return vec;
+    }
+};
+
+template<typename T>
+requires CSerializableRange<T>
+class BuiltinSerializeImpl<T>: public BSIObjectWrapperSerialize<T>{
+    using U = std::ranges::range_value_t<T>;
+public:
+    BuiltinSerializeImpl(const T &obj): BSIObjectWrapperSerialize<T>(obj) {}
+
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        Result res = Result::Success;
+        ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
+
+        size_t offset = 0;
+        const auto &obj = this->template getObjRef();
+        StorageBuffer buf;
+
+        auto size = std::ranges::size(obj);
+        buf = buffer.offset_advance(offset, szeimpl::size(size));
+        res = szeimpl::s(size, buf);
+
+        auto ser = [&](const U &u){
+            buf = buffer.offset_advance(offset, szeimpl::size(u));
+            res = szeimpl::s(u, buf);
+        };
+        std::ranges::for_each(obj, ser);
+
+        return res;
+    }
+    size_t getSizeImpl() const {
+        const auto &obj = this->template getObjRef();
+
+        auto size = szeimpl::size(std::ranges::size(obj));
+        auto sum = [&size](size_t s){ size += s; };
+        std::ranges::for_each(obj | std::views::transform(szeimpl::size<U>), sum); //std::as_const?
+
+        return size;
+    }
+};
+
+template<typename T>
+struct EmplaceWrapper{
+};
+
+template<typename T, typename... Args>
+concept has_absolute_emplace = requires(T& t, Args&&... args) {
+    t.emplace(std::forward<Args>(args)...);
+};
+
+template<typename T, typename... Args>
+concept has_positional_emplace = requires(T& t, T::const_iterator it, Args&&... args) {
+    t.emplace(it, std::forward<Args>(args)...);
+};
+
+
+
+template<typename T, typename... Args>
+requires has_absolute_emplace<T, Args...>
+void wrapped_emplace(T &t, Args&&... args){
+    t.emplace(std::forward<Args>(args)...);
+}
+
+template<typename T, typename... Args>
+requires has_positional_emplace<T, Args...> && std::ranges::range<T> && (!has_absolute_emplace<T, Args...>)
+void wrapped_emplace(T &t, Args&&... args){
+    t.emplace(std::ranges::end(t), std::forward<Args>(args)...);
+}
+
+template<typename T>
+requires sized_forward_range<T> && CSerializable<std::ranges::range_value_t<T>>
+class BuiltinDeserializeImpl<T>: public BSIObjectWrapperDeserialize<T>{
+    using U = std::ranges::range_value_t<T>;
+public:
+    T getObj() const {
+        size_t offset = 0;
+        auto buffer = this->buffer;
+        StorageBufferRO buf = buffer;
+        T r;
+
+        auto size = szeimpl::d<std::ranges::range_size_t<T>>(buf);
+        buffer.offset_advance(offset, szeimpl::size(size));
+        buf = buffer.offset(offset, buffer.size() - offset);
+        
+        for(size_t i = 0; i < size; i++){
+            auto u = szeimpl::d<U>(buf);
+            buffer.offset_advance(offset, szeimpl::size(u));
+            buf = buffer.offset(offset, buffer.size() - offset);
+
+            wrapped_emplace(r, std::move(u));
+        }
+
+        return r;
+    }
+};
+
+/*****************************/
 
 #if 0
 template<typename T>
