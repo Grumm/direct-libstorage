@@ -9,46 +9,24 @@
 
 #include <storage/StorageUtils.hpp>
 #include <storage/SerializeImpl.hpp>
+#include <storage/UniqueIDInterface.hpp>
+#include <storage/DataStorage.hpp>
 
-enum class UniqueIDName{
-    Instance,
-    Type,
-};
-template<UniqueIDName I>
-class UniqueIDInterface{
-public:
-    static constexpr uint32_t DEFAULT = 0;
-    UniqueIDInterface(){}
-    UniqueIDInterface(uint32_t id): id(id) {}
-    uint32_t getUniqueID() const { return id; }
-    bool operator==(const UniqueIDInterface<I> &other) const{
-        return id == other.id;
-    }
-protected:
-    uint32_t id{DEFAULT};
-};
-
-using UniqueIDInstance = UniqueIDInterface<UniqueIDName::Instance>;
-using UniqueIDType = UniqueIDInterface<UniqueIDName::Type>;
-
-template <typename T, UniqueIDName U>
-concept CUniqueID = std::is_base_of_v<UniqueIDInterface<U>, T>;
-
-class DataStorage;
+class DataStorageBase;
 
 /************************************************************************/
 
-template<typename T, UniqueIDName IDName = UniqueIDName::Instance>
+template<typename T, CStorage Storage, UniqueIDName IDName = UniqueIDName::Instance>
 requires CUniqueID<T, IDName>
 class UniqueIDStorage {
-    DataStorage &storage;
+    Storage &storage;
     std::map<uint32_t, std::pair<StorageAddress, std::unique_ptr<T>>> m;
     //std::map<std::string, uint32_t> types;
     //TODO use typeid(variable).name() to store actual type and perform type check
     uint32_t max_id{UniqueIDInterface<IDName>::DEFAULT};
 public:
     static constexpr size_t UNKNOWN_ID = 0;
-    UniqueIDStorage(DataStorage &storage): storage(storage) {}
+    UniqueIDStorage(Storage &storage): storage(storage) {}
 
     void registerInstance(const UniqueIDInterface<IDName> &u){
         T *t_ptr = static_cast<T *>(&(const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<decltype(u)>>>>(u)));
@@ -114,8 +92,8 @@ public:
         }
         return Result::Success;
     }
-    static UniqueIDStorage<T> deserializeImpl(const StorageBufferRO<> &buffer, DataStorage &storage) {
-        UniqueIDStorage<T> uid{storage};
+    static UniqueIDStorage<T, Storage> deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage) {
+        UniqueIDStorage<T, Storage> uid{storage};
 
         size_t offset = 0;
         auto buf = buffer;
@@ -131,7 +109,7 @@ public:
         }
         return uid;
     }
-    static UniqueIDStorage<T> deserializeImpl(const StorageBufferRO<> &buffer) { throw std::bad_function_call("Not implemented"); };
+    static UniqueIDStorage<T, Storage> deserializeImpl(const StorageBufferRO<> &buffer) { throw std::bad_function_call("Not implemented"); };
     size_t getSizeImpl() const {
         typename decltype(m)::size_type s{0};
         size_t sum = szeimpl::size(max_id) + szeimpl::size(s);
@@ -153,8 +131,14 @@ public:
     UniqueIDPtr(T *ptr): ptr(ptr), uid(*ptr) {}
     UniqueIDPtr(T &ptr): ptr(&ptr), uid(ptr) {}
     UniqueIDPtr(UniqueIDInterface<IDName> &uid): uid(uid) {}
-    T &get() const{
-        return *ptr;
+
+    template<typename U = T>
+    U *getPtr() const{
+        return static_cast<U *>(ptr);
+    }
+    template<typename U = T>
+    U &get() const{
+        return *getPtr<U>();
     }
     bool is_init() const{
         return ptr != nullptr;
@@ -169,9 +153,9 @@ public:
             return uid.getUniqueID();
         }
     }
-    template<typename U>
+    template<typename U, CStorage Storage>
     requires std::is_base_of_v<T, U>
-    void init(UniqueIDStorage<U, IDName> &uid_storage){
+    void init(UniqueIDStorage<U, Storage, IDName> &uid_storage){
         if(is_init() || is_empty()){
             return;
         }
@@ -185,7 +169,8 @@ public:
             return szeimpl::s(uid, buffer);
         }
     }
-    static UniqueIDPtr<T, IDName> deserializeImpl(const StorageBufferRO<> &buffer, UniqueIDStorage<T, IDName> &uid_storage) {
+    template<CStorage Storage>
+    static UniqueIDPtr<T, IDName> deserializeImpl(const StorageBufferRO<> &buffer, UniqueIDStorage<T, Storage, IDName> &uid_storage) {
         auto uid = szeimpl::d<UniqueIDInterface<IDName>>(buffer);
         return UniqueIDPtr<T, IDName>{uid_storage.template getInstance<T>(uid.getUniqueID())};
     }

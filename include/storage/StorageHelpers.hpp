@@ -5,6 +5,7 @@
 #include <storage/Utils.hpp>
 #include <storage/SerializeImpl.hpp>
 
+//TODO DefaultConstructible<T>
 template<typename T, typename SizeT = size_t>
 class SetOrderedBySize{
     std::multimap<SizeT, T> data;
@@ -24,13 +25,30 @@ public:
         }
         return true;
     }
-    std::pair<bool, T> get(SizeT size, SizeT atmost = std::numeric_limits<SizeT>::max()){
+    std::tuple<bool, SizeT, T> get(SizeT size, SizeT atmost = std::numeric_limits<SizeT>::max()){
+        auto it = data.lower_bound(size);
+        if(it == data.end() || it->first > atmost){
+            return std::make_tuple(false, 0, T());
+        }
+        ScopeDestructor sd([&](){ data.erase(it); });
+        return std::make_tuple(true, it->first, it->second);
+    }
+    template<typename F>
+    std::pair<bool, T> splice(SizeT size, F &&f, SizeT atmost = std::numeric_limits<SizeT>::max()){
         auto it = data.lower_bound(size);
         if(it == data.end() || it->first > atmost){
             return std::make_pair(false, T());
         }
-        ScopeDestructor sd([&](){ data.erase(it); });
-        return std::make_pair(true, it->second);
+        if(it->first == size){
+            ScopeDestructor sd([&](){ data.erase(it); });
+            return std::make_pair(true, it->second);
+        }
+        auto node = data.extract(it);
+        T old_key = f(node.mapped(), size);
+        node.key() -= size;
+        //reinserted node
+        it = data.insert(std::move(node));
+        return std::make_pair(true, old_key);
     }
 
     
@@ -44,7 +62,6 @@ public:
         return Result::Success;
     }
     static SetOrderedBySize<T> deserializeImpl(const StorageBufferRO<> &buffer) {
-        size_t offset = 0;
         auto buf = buffer;
         auto data = szeimpl::d<std::multimap<SizeT, T>>(buf);
         

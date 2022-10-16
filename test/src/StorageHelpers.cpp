@@ -26,23 +26,23 @@ TEST(SetOrderedBySizeTest, AddGetSimpleValues){
 
     {
         SetOrderedBySize<TestObject1> sobs2{sobs};
-        EXPECT_EQ(sobs2.get(1), std::make_pair(true, TestObject1{1, 3}));
+        EXPECT_EQ(sobs2.get(1), std::make_tuple(true, 3, TestObject1{1, 3}));
     }
     {
         SetOrderedBySize<TestObject1> sobs2{sobs};
-        EXPECT_EQ(sobs2.get(3), std::make_pair(true, TestObject1{1, 3}));
+        EXPECT_EQ(sobs2.get(3), std::make_tuple(true, 3, TestObject1{1, 3}));
     }
     {
         SetOrderedBySize<TestObject1> sobs2{sobs};
-        EXPECT_EQ(sobs2.get(4), std::make_pair(true, TestObject1{5, 10}));
+        EXPECT_EQ(sobs2.get(4), std::make_tuple(true, 5, TestObject1{5, 10}));
     }
     {
         SetOrderedBySize<TestObject1> sobs2{sobs};
-        EXPECT_EQ(sobs2.get(5), std::make_pair(true, TestObject1{5, 10}));
+        EXPECT_EQ(sobs2.get(5), std::make_tuple(true, 5, TestObject1{5, 10}));
     }
     {
         SetOrderedBySize<TestObject1> sobs2{sobs};
-        EXPECT_FALSE(sobs2.get(6).first);
+        EXPECT_FALSE(std::get<0>(sobs2.get(6)));
     }
 }
 
@@ -61,11 +61,11 @@ TEST(SetOrderedBySizeTest, AddGetSimpleLimitSize){
 
     {
         SetOrderedBySize<TestObject1> sobs2{sobs};
-        EXPECT_FALSE(sobs2.get(4, 50).first);
+        EXPECT_FALSE(std::get<0>(sobs2.get(4, 50)));
     }
     {
         SetOrderedBySize<TestObject1> sobs2{sobs};
-        EXPECT_EQ(sobs2.get(4, 200), std::make_pair(true, TestObject1{5, 99}));
+        EXPECT_EQ(sobs2.get(4, 200), std::make_tuple(true, 95, TestObject1{5, 99}));
     }
 }
 

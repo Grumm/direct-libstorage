@@ -154,7 +154,7 @@ Two options: we only store VFC in DataStorage, in static section
 
 Required Feature - verify VFC type stored at the address
 */
-template <CStorageImpl Storage, CSerializable Value, CSerializable ...Keys>
+template <CStorage Storage, CSerializable Value, CSerializable ...Keys>
     requires std::is_default_constructible_v<Value>
 class VirtualFileCatalog{
     Storage &storage;
@@ -205,7 +205,11 @@ public:
     }
     std::pair<bool, Value> get(const Keys&... keys){
         return mlkm.get(keys...);
-    }
+    }/*
+    template<typename T>
+    std::pair<bool, Value> get(const Keys&... keys){
+        return static_cast<T>(mlkm.get(keys...));
+    }*/
     std::pair<bool, Value &> getRef(const Keys&... keys){
         return mlkm.getRef(keys...);
     }

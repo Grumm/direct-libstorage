@@ -8,9 +8,42 @@
 #include <storage/StorageUtils.hpp>
 #include <storage/SerializeImpl.hpp>
 #include <storage/SerializeSpecialization.hpp>
-#include <storage/UniqueID.hpp>
+#include <storage/UniqueIDInterface.hpp>
 
-class DataStorage;
+class DataStorageBase;
+
+template<typename T>
+concept CStorageGeneric = requires(T &storage, const StorageAddress &addr, size_t size){
+    { storage.get_static_section() } -> std::same_as<StorageAddress>;
+    { storage.get_random_address(size) } -> std::same_as<StorageAddress>;
+    { storage.expand_address(addr, size) } -> std::same_as<StorageAddress>;
+    { storage.erase(addr) } -> std::same_as<Result>;
+};
+
+template<typename T>
+concept CStorageDirectMappedIO = requires(T &storage, const StorageAddress &addr, const StorageBuffer<> &const_buffer,
+        const StorageBufferRO<> &const_buffer_ro){
+    { storage.writeb(addr) } -> std::same_as<StorageBuffer<>>;
+    { storage.readb(addr) } -> std::same_as<StorageBufferRO<>>;
+    { storage.commit(const_buffer) } -> std::same_as<Result>;
+    { storage.commit(const_buffer_ro) } -> std::same_as<Result>;
+};
+
+template<typename T>
+concept CStorageCopybackIO = requires(T &storage, const StorageAddress &addr, StorageBuffer<> &buffer, const StorageBuffer<> &const_buffer){
+    { storage.read(addr, const_buffer) } -> std::same_as<Result>;
+    { storage.write(addr, const_buffer) } -> std::same_as<Result>;
+    { storage.write(addr) } -> std::same_as<Result>;
+    { storage.write(addr, buffer) } -> std::same_as<Result>;
+};
+
+template<typename T, typename U = void>
+concept CStorageNoRef = std::is_base_of_v<DataStorageBase, T> && CSerializable<T> && CStorageGeneric<T> && CStorageDirectMappedIO<T>;
+template<typename T, typename U = void>
+concept CStorage = CStorageNoRef<std::remove_cv_t<std::remove_reference_t<T>>, U>;
+
+
+
 /*
 class DSInterfaceCast{
 public:
@@ -46,50 +79,26 @@ public:
     }
 };*/
 
-class DataStorage: public UniqueIDInstance {
+class DataStorageBase: public UniqueIDInstance {
 public:
-    struct Stat{
-        //TODO
-    };
     template<typename T>
         requires std::negation_v<std::is_same<T, void>>
     Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
         return read(addr, buffer.template cast<void>());
     }
 
-    virtual StorageAddress get_static_section() = 0;
-    virtual StorageAddress get_random_address(size_t size) = 0;
-    virtual StorageAddress expand_address(const StorageAddress &address, size_t size) = 0;
-
-    virtual Result write(const StorageAddress &addr, const StorageBuffer<> &buffer) = 0;
-    virtual Result erase(const StorageAddress &addr) = 0;
-    virtual Result read(const StorageAddress &addr, StorageBuffer<> &buffer) = 0;
-
-    virtual StorageBuffer<> writeb(const StorageAddress &addr) = 0;
-    virtual StorageBufferRO<> readb(const StorageAddress &addr) = 0;
-    virtual Result commit(const StorageBuffer<> &buffer) = 0; //TODO hint where data has been changed?
-    virtual Result commit(const StorageBufferRO<> &buffer) = 0;
-
-    virtual Stat stat(const StorageAddress &addr) = 0;
-
-    DataStorage(uint32_t id): UniqueIDInstance(id) {
+    DataStorageBase(uint32_t id): UniqueIDInstance(id) {
         /*	DataStorage(): UniqueIDInstance(GenerateGlobalUniqueID()) {}
         if(HaveStorageManager()){
             GetGlobalUniqueIDStorage().registerInstance<DataStorage>(*this);
-        }*/
+        } */
     }
-    virtual ~DataStorage(){}
-
-    virtual Result serializeImpl(StorageBuffer<> &buffer) const = 0;
-    template<typename T>
-    static T deserializeImpl(const StorageBufferRO<> &buffer) {
-        throw std::bad_function_call("Not implemented. Deserializing abstract class");
-    }
-    virtual size_t getSizeImpl() const = 0;
+    virtual ~DataStorageBase(){}
 };
 
 //TODO reorganize
-static inline Result initialize_zero(DataStorage &storage, const StorageAddress &addr){
+template<CStorage Storage>
+static inline Result initialize_zero(Storage &storage, const StorageAddress &addr){
     auto buf = storage.writeb(addr);
     memset(buf.get(), 0, buf.allocated());
     return storage.commit(buf);

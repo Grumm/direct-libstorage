@@ -4,6 +4,8 @@
 #include <tuple>
 
 #include <storage/Utils.hpp>
+#include <storage/StorageUtils.hpp>
+#include <storage/SerializeImpl.hpp>
 
 template<typename T>
 concept CMergeMethod1 = requires(T &t1, T &&t2){
@@ -42,6 +44,8 @@ template<typename K, typename V>
 class IntervalMap{
     std::map<K, std::pair<K, V>> m; //[start] -> (end, V)
 
+    IntervalMap(std::map<K, std::pair<K, V>> &&m): m(m) {}
+
     auto find_it(const K &k, bool check_value = true) -> decltype(m)::iterator {
         auto it = m.upper_bound(k);
         if(it != m.end()){
@@ -74,13 +78,12 @@ class IntervalMap{
     }
 
     //template<typename F> , F &merge, Y &del, K &shrink -> some API
-    Result insert_impl(const K &start, const K &end, V &&v){
+    Result insert_impl(const K &start, const K &end, const V &v){
         auto it = find_it(start, false);
         decltype(it) it_prev = it;
         bool merged = false;
     
         if(it != m.end()){
-            auto iv_start = it->first;
             auto iv_end = it->second.first;
             V &val = it->second.second;
             LOG("found something to extend [");
@@ -123,7 +126,7 @@ class IntervalMap{
             }
         }
         if(!merged){
-            auto [it_new, inserted] = m.emplace(start, std::make_pair(end, std::forward<V>(v)));
+            auto [it_new, inserted] = m.emplace(start, std::make_pair(end, v));
             LOG_INFO("inserting [%lu, %lu]", start, end);
             ASSERT_ON(!inserted);
         }
@@ -131,7 +134,8 @@ class IntervalMap{
         return Result::Success;
     }
 
-    Result del_impl(const K &start, const K &end, size_t iteration = 0){
+    //template <typename F> , F &f
+    Result del_impl(const K &start, const K &end, size_t iteration){
         auto it = find_it(start, false); //find iter, but start could go after it
         if(it == m.end()){
             it = m.begin();
@@ -146,7 +150,7 @@ class IntervalMap{
         auto iv_start = it->first;
         auto iv_end = it->second.first;
         V &v = it->second.second;
-        auto iv_size = iv_end - iv_start;
+        //auto iv_size = iv_end - iv_start;
         ASSERT_ON(iv_start > iv_end);
         auto it_next = std::next(it);
 
@@ -178,11 +182,12 @@ class IntervalMap{
             //ASSERT_ON(true);
         }
 
-        if(end > iv_end){
+        if(end > iv_end && it_next != m.end()){
             //N-step range deletion
     
             K iv2_start = it_next->first;
-            K iv2_end = it_next->second.first;
+            //K iv2_end = it_next->second.first;
+            ASSERT_ON(iv2_start <= iv_start);
             if(iv2_start <= end){
                 //recursive
                 return del_impl(iv2_start, end, iteration + 1);
@@ -193,12 +198,12 @@ class IntervalMap{
     }
 public:
     template<typename T>
-    class IntervalResult{
+    class IntervalResultImpl{
         bool is_found;
         T it;
     public:
-        IntervalResult(T it): is_found(true), it(it) {}
-        IntervalResult(): is_found(false) {}
+        IntervalResultImpl(T it): is_found(true), it(it) {}
+        IntervalResultImpl(): is_found(false) {}
         bool found() const{
             return is_found;
         }
@@ -220,6 +225,9 @@ public:
         }
         //merge(IntervalResult other, M m), M - merge<V> object
     };
+    using ConstIntervalResult = IntervalResultImpl<typename decltype(m)::const_iterator>;
+    using IntervalResult = IntervalResultImpl<typename decltype(m)::iterator>;
+    IntervalMap(){}
 
     //merge<V> -> merge(V&v1_dst, V&&v2), mergeN(V&v1_dst, std::vector<V> &vec)
     //set(): do merge, extend, set
@@ -228,50 +236,100 @@ public:
     //merge_all_ranges(start, end) -> IntervalResult
 
     //return whether found, interval start, interval end, V
-    auto find(const K &k) const{
+    auto find(const K &k) const -> ConstIntervalResult{
         auto it = find_it(k);
         if(it == m.end()){
-            return IntervalResult<typename decltype(m)::const_iterator>{};
+            return ConstIntervalResult{};
         }
-        return IntervalResult<typename decltype(m)::const_iterator>{it};
+        return ConstIntervalResult{it};
     }
-    auto find(const K &k) {
+    auto find(const K &k) -> IntervalResult{
         auto it = find_it(k);
         if(it == m.end()){
-            return IntervalResult<typename decltype(m)::iterator>{};
+            return IntervalResult{};
         }
 
-        return IntervalResult<typename decltype(m)::iterator>{it};
+        return IntervalResult{it};
     }
 
     Result del(const K &start, const K &end){
         return del_impl(start, end, 0);
     }
-/*
-    auto find_all_intervals(const K &start, const K &end) -> std::vector<std::pair<K, K>> {
-        
+    template<typename F>
+    void for_each_interval(const K &start, const K &end, F &&f) {
+        auto it = find_it(start);
+        while(it != m.end()){
+            auto iv_result = IntervalResult{it};
+            auto [iv_start, iv_end] = iv_result.range();
+            if (end < iv_start){
+                break;
+            }
+            f(std::move(iv_result), std::max(iv_start, start), std::min(iv_end, end), iv_result.value());
+            it++;
+        }
     }
-    auto find_all_iters(const K &start, const K &end) -> std::vector<std::invoke_result_t<find_it>> {
+/*
+    template<typename F>
+    void del_foreach(const K &start, const K &end, F &&f) {
+
+    }
+    auto find_all_iters(const K &start, const K &end) -> std::vector<IntervalResult> {
         
     }
 */
 
-    Result set(const K &start, const K &end, V &&v){
+    Result set(const K &start, const K &end, const V &v){
         //find all intervals that have [start, end]
         //TODO
         del(start, end);
-        return insert_impl(start, end, std::forward<V>(v));
+        return insert_impl(start, end, v);
     }
 
-    Result insert(const K &start, const K &end, V &&v){
+    Result insert(const K &start, const K &end, const V &v){
         if(has(start, end)){
             del(start, end);
         }
-        return insert_impl(start, end, std::forward<V>(v));
+        return insert_impl(start, end, v);
     }
 
     bool has(const K &k) const{
         return find_it(k) != m.end();
+    }
+    //TODO unit test
+    template<typename F>
+    Result expand(const K &start, const K &new_end, F &&f){
+        //find range with start, ensure it is [<start, new_end)
+        auto it = find_it(start);
+        if(it == m.end()){
+            return Result::Failure;
+        }
+        auto iv_result = IntervalResult{it};
+        auto [iv_start, iv_end] = iv_result.range();
+        ASSERT_ON(iv_start > start);
+        if (iv_end >= new_end){
+            //no need to expand
+            f(iv_result, new_end, new_end); //(iv_result, new_end, iv_end)??
+            return Result::Success;
+        }
+        //expand range if can do it, return false if fails
+        auto newit = it; newit++;
+        if (newit != m.end()){
+            //has next range
+            auto next_iv_result = IntervalResult{newit};
+            auto [n_iv_start, n_iv_end] = next_iv_result.range();
+            if(n_iv_start <= new_end){
+                //overlaps next range, failing
+                return Result::Failure;
+            }
+            //okay, continue updating range and value
+        }
+        K old_end = iv_end;
+        //TODO wrap it as iv_result.set()
+        it->second.first = new_end;
+        it->second.second += new_end - iv_end;
+        f(iv_result, old_end, new_end);
+
+        return Result::Success;
     }
 
     bool has(const K &start, const K &end) const{
@@ -290,5 +348,23 @@ public:
     void clear(){
         m.clear();
     }
-    //TODO serialize
+
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        ASSERT_ON(getSizeImpl() > buffer.allocated());
+        size_t offset = 0;
+
+        auto buf = buffer.offset_advance(offset, szeimpl::size(m));
+        szeimpl::s(m, buf);
+
+        return Result::Success;
+    }
+    static IntervalMap<K, V> deserializeImpl(const StorageBufferRO<> &buffer) {
+        auto buf = buffer;
+        auto m = szeimpl::d<std::map<K, std::pair<K, V>>>(buf);
+        
+        return IntervalMap{std::move(m)};
+    }
+    size_t getSizeImpl() const {
+        return szeimpl::size(m);
+    }
 };

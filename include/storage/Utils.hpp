@@ -43,6 +43,11 @@ enum class Result{
 	Failure,
 };
 
+#define RET_ON_X(res, X) do{ auto __res = (res); if(__res == (X)){ return __res; } }while(0)
+#define RET_ON_SUCCESS(res) RET_ON_X((res), Result::Success)
+#define RET_ON_FAILURE(res) RET_ON_X((res), Result::Failure)
+#define RET_ON_FAIL(res) do{ auto __res = (res); if(__res){ return Result::Failure; } }while(0)
+
 template <typename T>
 const T *PTR_OFFSET(const T *base, size_t offset){
 	return reinterpret_cast<const T *>(reinterpret_cast<const char *>(base) + offset);

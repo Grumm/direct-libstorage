@@ -17,18 +17,12 @@ class ObjectAddress{
 
 };
 
-class DataStorage;
+class DataStorageBase;
 class StorageAddress;
 
-template<class T, class U>
-concept Derived = std::is_base_of<U, T>::value;
-
-template<typename T, typename U>
-concept CStorage = std::is_same_v<T, ObjectStorage<U>> || std::is_same_v<T, DataStorage> || std::is_base_of_v<DataStorage, T>;
-template<typename T, typename U = void>
-concept CStorageImpl = std::is_same_v<T, ObjectStorage<U>> || (std::is_base_of_v<DataStorage, T> && !std::is_same_v<T, DataStorage>);
 template<typename T>
 concept CStorageAddress = std::is_same_v<T, StorageAddress> || std::is_same_v<T, ObjectAddress>;
+
 template<typename T>
 concept TupleLike = requires (T a) {
     std::tuple_size<T>::value;
@@ -57,11 +51,11 @@ concept CDeserializableImpl = dsptr_T<decltype(&T::deserializeImpl)>::value;
 
 #else
 template<typename T, typename ...Args>
-concept CDeserializableImpl1 = requires(const T &t, const StorageBufferRO<> &buffer, Args... args){
+concept CDeserializableImpl1 = requires(const T &t, const StorageBufferRO<> &buffer, Args&&... args){
     { T::deserializeImpl(buffer, std::forward<Args>(args)...) } -> std::same_as<T>;
 };
-template<typename T, typename ...Args>
-concept CDeserializableImpl2 = requires(const T &t, const StorageBufferRO<> &buffer, Args... args){
+template<typename T>
+concept CDeserializableImpl2 = requires(const T &t, const StorageBufferRO<> &buffer){
     { T::deserializeImpl(buffer) } -> std::same_as<T>;
 };
 

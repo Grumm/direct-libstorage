@@ -37,7 +37,7 @@ constexpr size_t MEMORYSIZE=12;
 TEST(UniqueIDTest, SimpleRegisterGet){
     SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
     {
-        UniqueIDStorage<TestUIDClass> uid_s{storage};
+        UniqueIDStorage<TestUIDClass, decltype(storage)> uid_s{storage};
 
         auto tuid1 = new TestUIDClass{7, 1};
         uid_s.registerInstance(*tuid1);
@@ -50,7 +50,7 @@ TEST(UniqueIDTest, RegisterGetSerializeDeserializeUIDStorage){
     SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
     StorageAddress addr1;
     {
-        UniqueIDStorage<TestUIDClass> uid_s{storage};
+        UniqueIDStorage<TestUIDClass, decltype(storage)> uid_s{storage};
 
         auto tuid1 = new TestUIDClass{7, 1};
         uid_s.registerInstance(*tuid1);
@@ -62,7 +62,7 @@ TEST(UniqueIDTest, RegisterGetSerializeDeserializeUIDStorage){
         addr1 = serialize<StorageAddress>(storage, uid_s);
     }
     {
-        auto uid_s = deserialize<UniqueIDStorage<TestUIDClass>>(storage, addr1, storage);
+        auto uid_s = deserialize<UniqueIDStorage<TestUIDClass, decltype(storage)>>(storage, addr1, storage);
         auto &tuid2_inst = uid_s.getInstance<TestUIDClass>(1);
         EXPECT_EQ(tuid2_inst.a, 7);
         EXPECT_EQ(tuid2_inst.UniqueIDInstance::getUniqueID(), 1);
@@ -73,7 +73,7 @@ TEST(UniqueIDTest, DeleteInstance){
     SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
     StorageAddress addr1;
     {
-        UniqueIDStorage<TestUIDClass> uid_s{storage};
+        UniqueIDStorage<TestUIDClass, decltype(storage)> uid_s{storage};
 
         auto tuid1 = new TestUIDClass{7, 1};
         uid_s.registerInstance(*tuid1);
@@ -89,7 +89,7 @@ TEST(UniqueIDTest, DeleteInstance){
         serialize<StorageAddress>(storage, uid_s, addr1);
     }
     {
-        auto uid_s = deserialize<UniqueIDStorage<TestUIDClass>>(storage, addr1, storage);
+        auto uid_s = deserialize<UniqueIDStorage<TestUIDClass, decltype(storage)>>(storage, addr1, storage);
         EXPECT_THROW(uid_s.getInstance<TestUIDClass>(1), std::logic_error);
     }
 }
@@ -97,7 +97,7 @@ TEST(UniqueIDTest, DeleteInstance){
 TEST(UniqueIDTest, UniqueIDPtrSerializeDeserialize){
     SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
 
-    UniqueIDStorage<TestUIDClass> uid_s{storage};
+    UniqueIDStorage<TestUIDClass, decltype(storage)> uid_s{storage};
 
     UniqueIDPtr<TestUIDClass> uidptr1(new TestUIDClass{7, 1});
     uid_s.registerInstance(uidptr1.get());

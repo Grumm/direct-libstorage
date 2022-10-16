@@ -26,17 +26,22 @@
 #endif
 
 template<typename T>
-concept CRMAImpl = requires(T &t, size_t offset, size_t size, StorageBuffer<> &buffer){
+concept CRMADirectMappedIO = requires(T &t, size_t offset, size_t size, StorageBuffer<> &buffer){
     { t.open() } -> std::same_as<Result>;
     { t.close() } -> std::same_as<Result>;
-    { t.write(offset, buffer) } -> std::same_as<Result>;
-    { t.read(offset, size, buffer) } -> std::same_as<Result>;
 
     { t.writeb(offset, size) } -> std::same_as<StorageBuffer<>>;
     { t.readb(offset, size) } -> std::same_as<StorageBufferRO<>>;
 };
+
 template<typename T>
-concept CRMA = CRMAImpl<T> && CSerializable<T>;
+concept CRMACopybackIO = requires(T &t, size_t offset, size_t size, StorageBuffer<> &buffer){
+    { t.write(offset, buffer) } -> std::same_as<Result>;
+    { t.read(offset, size, buffer) } -> std::same_as<Result>;
+};
+
+template<typename T>
+concept CRMA = CRMADirectMappedIO<T> && CSerializable<T>;
 
 template<size_t MAX_FILESIZE_OFFSET = 32> //4GiB
 class FileRMA{

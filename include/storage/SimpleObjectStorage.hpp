@@ -11,7 +11,7 @@
 //Implements CObjectStorageImpl
 //Can store any object. No matter the sze::size of T
 template<typename T, typename Storage, size_t MAX_OBJS = std::numeric_limits<size_t>::max()>
-requires CStorageImpl<Storage, T>
+requires CStorage<Storage, T>
 class SimpleObjectStorage{
     Storage &storage;
     StorageAddress base;
@@ -29,14 +29,14 @@ class SimpleObjectStorage{
     //max_obj_index
 
     StorageAddress getNewAddress(size_t size) {
-        auto [has, addr] = unused_addresses.get(size);
-        if (has){
+        auto advance_address = [](StorageAddress &addr, size_t size) -> StorageAddress{
             auto new_addr = addr.subrange(0, size);
             addr = addr.offset(size);
-            if(addr.size != 0){
-                unused_addresses.add(addr.size, addr);
-            }
             return new_addr;
+        };
+        auto [has, address] = unused_addresses.splice(size, advance_address);
+        if(has){
+            return address;
         }
         StorageAddress new_addr = tail_addr.subrange(0, size);
         tail_addr = tail_addr.offset(size);

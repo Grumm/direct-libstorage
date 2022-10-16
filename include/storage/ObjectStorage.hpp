@@ -19,7 +19,7 @@ concept CObjectStorageImpl = requires(const T &t, T &t2, const U &u, const U &u2
     requires CSerializable<T>;
 };
 
-template<CSerializable T, CStorageImpl Storage, typename ObjectStorageImpl, size_t MAX_OBJS = std::numeric_limits<size_t>::max()>
+template<CSerializable T, CStorage Storage, typename ObjectStorageImpl, size_t MAX_OBJS = std::numeric_limits<size_t>::max()>
 requires CObjectStorageImpl<T>
 class ObjectStorage{
     Storage &storage;

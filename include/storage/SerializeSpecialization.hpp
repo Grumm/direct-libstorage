@@ -475,31 +475,3 @@ public:
         return r;
     }
 };
-
-/*****************************/
-
-#if 0
-template<typename T>
-concept ElementIterable = std::ranges::range<std::ranges::range_value_t<T>>;
-template<CSerializable T, ElementIterable<T> U>
-class BuiltinSerializeImpl<std::map<Key, Val>>{
-    const std::string obj;
-public:
-    BuiltinSerializeImpl(const std::string &obj): obj(obj) {}
-    Result serializeImpl(StorageBuffer<> &buffer) const {
-        ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
-        char *s = buffer.get<char>();
-        std::strncpy(s, obj.c_str(), buffer.size());
-        return Result::Success;
-    }
-    static BuiltinSerializeImpl<std::string> deserializeImpl(const StorageBufferRO<> &buffer) {
-        auto str = std::string{buffer.get<const char>(), buffer.size() - 1};
-        // removing trailing \0
-        return BuiltinSerializeImpl{std::string{str.c_str()}};
-    }
-    size_t getSizeImpl() const {
-        return obj.length() + 1;
-    }
-    const std::string &getObj() const { return obj; }
-};
-#endif

@@ -5,7 +5,7 @@
 
 /****************************************************/
 
-class DataStorage;
+class DataStorageBase;
 
 namespace sze{
 #if 0
@@ -25,8 +25,8 @@ namespace sze{
     size_t getSize(const T &obj){
         return szeimpl::size(obj);
     }
-    template<CSerializable T>
-    void serialize(const T &obj, DataStorage &storage, StorageAddress &address){
+    template<CSerializable T, CStorage Storage>
+    void serialize(const T &obj, Storage &storage, StorageAddress &address){
         size_t size = getSize<T>(obj);
 
         if(address.size < size){
@@ -40,16 +40,16 @@ namespace sze{
         szeimpl::s(obj, buffer);
         storage.commit(buffer);
     }
-    template<CSerializable T>
-    StorageAddress serialize(const T &obj, DataStorage &storage) {
+    template<CSerializable T, CStorage Storage>
+    StorageAddress serialize(const T &obj, Storage &storage) {
         StorageAddress address;
         serialize(obj, storage, address);
         return address;
     }
 
-    template<typename T, typename ...Args>
+    template<typename T, CStorage Storage, typename ...Args>
     requires CDeserializableImpl<T, Args...>
-    T deserialize(DataStorage &storage, const StorageAddress &addr, Args&&... args){
+    T deserialize(Storage &storage, const StorageAddress &addr, Args&&... args){
         StorageBufferRO buffer = storage.readb(addr);
         ScopeDestructor sd{[&storage, &buffer](){ storage.commit(buffer); }};
         return szeimpl::d<T, void, Args...>(buffer, std::forward<Args>(args)...);
@@ -65,48 +65,48 @@ namespace sze{
 
 /****************************************************/
 
-template<CStorageAddress A, CSerializableImpl T, CStorage<T> S>
-A serialize(S &storage, const T &obj){
+template<CStorageAddress A, CSerializableImpl T, CStorage Storage>
+A serialize(Storage &storage, const T &obj){
     return sze::serialize(obj, storage);
 }
 
-template<CStorageAddress A, CSerializableImpl T, CStorage<T> S>
-void serialize(S &storage, const T &obj, A &address){
+template<CStorageAddress A, CSerializableImpl T, CStorage Storage>
+void serialize(Storage &storage, const T &obj, A &address){
     sze::serialize(obj, storage, address);
 }
 
-template<typename T, CStorageAddress A, CStorage<T> S, typename ...Args>
+template<typename T, CStorageAddress A, CStorage Storage, typename ...Args>
 requires CDeserializableImpl<T, Args...>
-T deserialize(S &storage, const A &address, Args&& ...args){
-    return sze::deserialize<T, Args...>(storage, address, std::forward<Args>(args)...);
+T deserialize(Storage &storage, const A &address, Args&& ...args){
+    return sze::deserialize<T, Storage, Args...>(storage, address, std::forward<Args>(args)...);
 }
 
-template<typename T, CStorageAddress A, CStorage<T> S, typename ...Args>
+template<typename T, CStorageAddress A, CStorage Storage, typename ...Args>
 requires CDeserializableImpl<T, Args...>
-std::unique_ptr<T> deserialize_ptr(S &storage, const A &address, Args&& ...args){
-    T *t = new T{deserialize<T, A, S, Args...>(storage, address, std::forward<Args>(args)...)};
+std::unique_ptr<T> deserialize_ptr(Storage &storage, const A &address, Args&& ...args){
+    T *t = new T{deserialize<T, A, Storage, Args...>(storage, address, std::forward<Args>(args)...)};
     return std::unique_ptr<T>(t);
 }
 //for builtins
 
-template<CStorageAddress A, CBuiltinSerializable T, CStorage<T> S>
-A serialize(S &storage, const T &obj){
+template<CStorageAddress A, CBuiltinSerializable T, CStorage Storage>
+A serialize(Storage &storage, const T &obj){
     return sze::serialize(BuiltinSerializeImpl<T>{obj}, storage);
 }
 
-template<CStorageAddress A, CBuiltinSerializable T, CStorage<T> S>
-void serialize(S &storage, const T &obj, A &address){
+template<CStorageAddress A, CBuiltinSerializable T, CStorage Storage>
+void serialize(Storage &storage, const T &obj, A &address){
     sze::serialize(BuiltinSerializeImpl<T>{obj}, storage, address);
 }
 
-template<typename T, CStorageAddress A, CStorage<T> S, typename ...Args>
+template<typename T, CStorageAddress A, CStorage Storage, typename ...Args>
 requires CBuiltinDeserializable<T, Args...>
-T deserialize(S &storage, const A &address, Args&& ...args){
-    return sze::deserialize<BuiltinDeserializeImpl<T>, Args...>(storage, address, std::forward<Args>(args)...).getObj();
+T deserialize(Storage &storage, const A &address, Args&& ...args){
+    return sze::deserialize<BuiltinDeserializeImpl<T>, Storage, Args...>(storage, address, std::forward<Args>(args)...).getObj();
 }
 
-template<typename T, CStorageAddress A, CStorage<T> S, typename ...Args>
+template<typename T, CStorageAddress A, CStorage Storage, typename ...Args>
 requires CBuiltinDeserializable<T, Args...>
-std::unique_ptr<T> deserialize_ptr(S &storage, const A &address, Args&& ...args){
-    return std::make_unique<T>(deserialize<T, A, S, Args...>(storage, address, std::forward<Args>(args)...));
+std::unique_ptr<T> deserialize_ptr(Storage &storage, const A &address, Args&& ...args){
+    return std::make_unique<T>(deserialize<T, A, Storage, Args...>(storage, address, std::forward<Args>(args)...));
 }

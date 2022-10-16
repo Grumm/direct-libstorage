@@ -4,7 +4,11 @@
 
 #include <storage/Storage.hpp>
 
-std::unique_ptr<StorageManager> g_storage_manager;
+constexpr size_t GStorageSize = 24;
+using GStorageType = SimpleFileStorage<GStorageSize>;
+std::unique_ptr<GStorageType> g_storage_base;
+std::unique_ptr<StorageManager<>> g_storage_manager;
+
 
 //generate filename based on argv[0]
 std::string generate_filename_from_argv(std::string execname){
@@ -26,7 +30,8 @@ static void init_libstorage(std::filesystem::path path){
     std::filesystem::create_directories(path, ec);
     ASSERT_ON_MSG(ec, ec.message());
     path.replace_filename(filename);
-    g_storage_manager.reset(new StorageManager(path.string()));
+    g_storage_base.reset(new GStorageType(FileRMA<24>{filename}, StorageManager<GStorageType>::METADATA_SIZE));
+    g_storage_manager.reset(new StorageManager<GStorageType>(*g_storage_base.get()));
     g_storage_manager->init();
 }
 
@@ -51,16 +56,16 @@ void InitLibStorage(const std::string &_path, const std::string &filename){
 bool HaveStorageManager(){
     return g_storage_manager.get() != nullptr;
 }
-StorageManager &GetStorageManager(){
+StorageManager<GStorageType> &GetStorageManager(){
     ASSERT_ON_MSG(!HaveStorageManager(), "Uninitialzied Storage");
     return *g_storage_manager.get();
 }
 
-DataStorage &GetGlobalMetadataStorage(){
+DataStorageBase &GetGlobalMetadataStorage(){
     return GetStorageManager().getStorage();
 }
 
-UniqueIDStorage<DataStorage> &GetGlobalUniqueIDStorage(){
+UniqueIDStorage<DataStorageBase, GStorageType> &GetGlobalUniqueIDStorage(){
     return GetStorageManager().getUIDStorage();
 }
 
@@ -68,6 +73,6 @@ uint32_t GenerateGlobalUniqueID(){
     if(HaveStorageManager()){
         return GetGlobalUniqueIDStorage().generateID();
     } else {
-        return UniqueIDStorage<DataStorage>::UNKNOWN_ID; //Global Metadata
+        return UniqueIDStorage<DataStorageBase, GStorageType>::UNKNOWN_ID; //Global Metadata
     }
 }

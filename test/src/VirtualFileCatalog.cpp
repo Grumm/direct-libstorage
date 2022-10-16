@@ -109,12 +109,12 @@ TEST(VirtualFileCatalogTest, SimpleSerializeDeserializeAddDeleteTwice) {
   }
 }
 
-using UniqueDataStorage = UniqueIDPtr<DataStorage>;
+using UniqueDataStorage = UniqueIDPtr<DataStorageBase>;
 using TestVFCType2 =
     VirtualFileCatalog<SimpleRamStorage<MEMORYSIZE>, UniqueDataStorage, int16_t, uint64_t>;
 TEST(VirtualFileCatalogTest, UniqueDataStoragePtrSerializeDeserialize) {
   SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
-  UniqueIDStorage<SimpleFileStorage<FILESIZE>> uid_s{storage};
+  UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)> uid_s{storage};
   {
     auto storage1 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename1}, 3};
     auto storage2 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename2}, 7};
@@ -138,7 +138,7 @@ TEST(VirtualFileCatalogTest, UniqueDataStoragePtrSerializeDeserialize) {
 
 TEST(VirtualFileCatalogTest, UDSPtrSerializeDeserializeInstantiate) {
   SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
-  UniqueIDStorage<SimpleFileStorage<FILESIZE>> uid_s{storage};
+  UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)> uid_s{storage};
   StorageAddress addr1;
   StorageAddress addr2;
   {
@@ -167,23 +167,23 @@ TEST(VirtualFileCatalogTest, UDSPtrSerializeDeserializeInstantiate) {
   }
   {
     TestVFCType2 vfc2{storage};
-    auto r1 = vfc2.get(15000, 0xfffffffffe);
-    auto r2 = vfc2.get(-13, 114);
-    EXPECT_TRUE(r1.first);
-    EXPECT_TRUE(r2.first);
-    EXPECT_EQ(r1.second.getID(), 3);
-    EXPECT_EQ(r2.second.getID(), 7);
-    EXPECT_FALSE(r1.second.is_init());
-    EXPECT_FALSE(r2.second.is_init());
-    r1.second.init(uid_s);
-    r2.second.init(uid_s);
-    EXPECT_TRUE(r1.second.is_init());
-    EXPECT_TRUE(r2.second.is_init());
-    auto storage1 = &r1.second.get();
-    auto storage2 = &r2.second.get();
+    auto [has1, val1] = vfc2.get(15000, 0xfffffffffe);
+    auto [has2, val2] = vfc2.get(-13, 114);
+    EXPECT_TRUE(has1);
+    EXPECT_TRUE(has2);
+    EXPECT_EQ(val1.getID(), 3);
+    EXPECT_EQ(val2.getID(), 7);
+    EXPECT_FALSE(val1.is_init());
+    EXPECT_FALSE(val2.is_init());
+    val1.init(uid_s);
+    val2.init(uid_s);
+    EXPECT_TRUE(val1.is_init());
+    EXPECT_TRUE(val2.is_init());
+    auto storage1 = val1.getPtr<SimpleFileStorage<FILESIZE>>();
+    auto storage2 = val2.getPtr<SimpleFileStorage<FILESIZE>>();
   
-    EXPECT_EQ(r1.second.getID(), 3);
-    EXPECT_EQ(r2.second.getID(), 7);
+    EXPECT_EQ(val1.getID(), 3);
+    EXPECT_EQ(val2.getID(), 7);
   
     auto buf1 = storage1->readb(addr1);
     auto buf2 = storage2->readb(addr2);
@@ -202,7 +202,7 @@ TEST(VirtualFileCatalogTest, UDSPtrSDInstantiateSD) {
   StorageAddress addr_s2;
   StorageAddress addr_uids;
   {
-    UniqueIDStorage<SimpleFileStorage<FILESIZE>> uid_s{storage};
+    UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)> uid_s{storage};
 	  std::filesystem::remove(std::filesystem::path{filename1});
 	  std::filesystem::remove(std::filesystem::path{filename2});
     auto storage1 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename1}, 3};
@@ -233,7 +233,7 @@ TEST(VirtualFileCatalogTest, UDSPtrSDInstantiateSD) {
     EXPECT_EQ(vfc1.add(-13, 114, uds2), Result::Success);
   }
   {
-    auto uid_s = deserialize<UniqueIDStorage<SimpleFileStorage<FILESIZE>>>(storage, addr_uids, storage);
+    auto uid_s = deserialize<UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)>>(storage, addr_uids, storage);
     TestVFCType2 vfc2{storage};
     auto r1 = vfc2.get(15000, 0xfffffffffe);
     auto r2 = vfc2.get(-13, 114);
@@ -247,8 +247,8 @@ TEST(VirtualFileCatalogTest, UDSPtrSDInstantiateSD) {
     r2.second.init(uid_s);
     EXPECT_TRUE(r1.second.is_init());
     EXPECT_TRUE(r2.second.is_init());
-    auto storage1 = &r1.second.get();
-    auto storage2 = &r2.second.get();
+    auto storage1 = r1.second.getPtr<SimpleFileStorage<FILESIZE>>();
+    auto storage2 = r2.second.getPtr<SimpleFileStorage<FILESIZE>>();
   
     EXPECT_EQ(r1.second.getID(), 3);
     EXPECT_EQ(r2.second.getID(), 7);

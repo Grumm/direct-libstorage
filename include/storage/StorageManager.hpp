@@ -37,23 +37,22 @@ public:
 #include <storage/RandomMemoryAccess.hpp>
 #include <storage/SimpleStorage.hpp>
 
+template<CStorage Storage = SimpleFileStorage<24>>
 class StorageManager {
-    static constexpr uint32_t FILESIZE = 24; //16MB
-    SimpleFileStorage<FILESIZE> storage;
-
+    Storage &storage;
     struct Metadata{
         static constexpr uint32_t MAGIC = 0xde0a2Fb;
         uint32_t magic;
         StorageAddress uid;
         //TODO like type table for all uids?
-        void init(DataStorage &storage){
+        void init(Storage &storage){
             if(magic != MAGIC){
-                uid = storage.get_random_address(szeimpl::size(UniqueIDStorage<DataStorage>{storage}));
+                uid = storage.get_random_address(szeimpl::size(UniqueIDStorage<DataStorageBase, Storage>{storage}));
                 initialize_zero(storage, uid);
             }
         }
 
-        static size_t size(){
+        static constexpr size_t size(){
             return sizeof(Metadata);
         }
     };
@@ -61,20 +60,22 @@ class StorageManager {
     Metadata metadata;
 
     //to initialized via init() - second stage, needs g_storage_manager initialized already
-    std::unique_ptr<UniqueIDStorage<DataStorage>> uid;
+    std::unique_ptr<UniqueIDStorage<DataStorageBase, Storage>> uid;
 public:
-    StorageManager(const std::string &filename):
-            storage(FileRMA<FILESIZE>{filename}, Metadata::size()),
-            metadata_addr(storage.get_static_section()),
+    static constexpr size_t METADATA_SIZE = Metadata::size();
+    StorageManager(Storage &storage):
+            storage(storage),
+            metadata_addr(storage.template get_static_section()),
             metadata(deserialize<Metadata>(storage, metadata_addr)) {
+        ASSERT_ON(METADATA_SIZE > metadata_addr.size);
         metadata.init(storage);
     }
     void init(){
-        auto ptr = deserialize_ptr<UniqueIDStorage<DataStorage>>(storage, metadata.uid, storage);
+        auto ptr = deserialize_ptr<UniqueIDStorage<DataStorageBase, Storage>>(storage, metadata.uid, storage);
         uid.swap(ptr);
     }
-    SimpleFileStorage<FILESIZE> &getStorage() { return storage; }
-    UniqueIDStorage<DataStorage> &getUIDStorage() { return *uid.get(); }
+    Storage &getStorage() { return storage; }
+    UniqueIDStorage<DataStorageBase, Storage> &getUIDStorage() { return *uid.get(); }
 };
 
 /************************************************************************/

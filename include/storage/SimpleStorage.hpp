@@ -3,190 +3,150 @@
 #include <map>
 
 #include <storage/Utils.hpp>
+#include <storage/IntervalMap.hpp>
+#include <storage/StorageHelpers.hpp>
 #include <storage/SerializeImpl.hpp>
 #include <storage/DataStorage.hpp>
 #include <storage/RandomMemoryAccess.hpp>
 
 /*
     get address -> alloc_unmapped() -> add to unmapped
-    stop using -> del() -> remove from unmapped or m
-    start using -> lookup() -> alloc() -> add to m, find new range in empty or at the end
+    stop using -> del() -> remove from unmapped or intervals
+    start using -> lookup() -> alloc() -> add to intervals, find new range in empty or at the end
     using -> lookup() -> find in m
     expanding address -> expand() -> allocate new mapping alloc() or expand existing m entry
 */
 class VirtAddressMapping{
-    // two options:
-    // <------> file offset -> virtual address mapping, but doesn't give log(N) access in runtime
-    // [virtual address, virtual address] -> file offset start - good, but have to manually group
-    std::map<uint64_t, std::pair<size_t, size_t>> m; //addr-><offset, size>
-    //std::set<std::pair<size_t, size_t>> empty;
+protected:
+    IntervalMap<uint64_t, size_t> intervals; //addr -> <offset, size>
     std::map<uint64_t, size_t> unmapped;
-    std::multimap<size_t, size_t> empty; //size, offset
+    SetOrderedBySize<size_t, size_t> empty;
     std::pair<uint64_t, size_t> max; //virtaddr, offset
 
     static constexpr size_t MIN_EMPTYSIZE = 16;
     static constexpr size_t UNMAPPED_OFFSET = std::numeric_limits<size_t>::max();
+
+    size_t alloc_offset(size_t addr, size_t size){
+        auto advance_offset = [](size_t &offset, size_t size) -> size_t{
+                auto old_offset = offset;
+                offset = offset + size;
+                return old_offset;
+            };
+        auto [has, offset] = empty.splice(size, advance_offset);
+        if(has){
+            return offset;
+        }
+        // allocate new range at the end
+        max.first = addr + size;
+        max.second += size;
+        LOG_DEBUG("VirtAddressMapping::alloc_offset {%lx, %lu}->[%lu, %lu]",
+            addr, size, max.second - size, size);
+        return max.second - size;
+    }
+    static uint64_t end_offset(uint64_t addr, uint64_t size){
+        ASSERT_ON(size == 0);
+        return addr + size - 1;
+    }
+    static uint64_t size_from_start_end(uint64_t start, uint64_t end){
+        return end - start + 1;
+    }
 public:
     static constexpr size_t DEFAULT_SIZE = 1024 * 1024;
+    static constexpr size_t EXTRA_SPARE_SPACE = 1024;
 
-    //lookup for mapping addres -> <offset, size>. if not found
+    //lookup for mapping addres -> <offset, size>
     std::pair<size_t, size_t> lookup(uint64_t addr, size_t size, bool is_read_only = false) {
-        auto it = m.upper_bound(addr);
-        if(it != m.end()){
-            --it;
-        } else if(m.end() != m.begin()){
-            it = std::prev(m.end());
-        }
-        ASSERT_ON(it == m.end());
-
-        uint64_t va_start = it->first;
-        size_t va_size = it->second.second;
-        size_t offset = it->second.first;
-        size_t addr_offset = addr - va_start;
+        auto iv_result = intervals.find(addr);
+        ASSERT_ON(!iv_result.found());
+        auto [va_start, va_end] = iv_result.range();
+        auto va_size = size_from_start_end(va_start, va_end);
+        auto addr_offset = addr - va_start;
+        auto mapped_offset = iv_result.value();
         ASSERT_ON(va_start > addr);
-        ASSERT_ON(va_start + va_size < addr + size);
+        ASSERT_ON(va_end < end_offset(addr, size));
 
-        if(offset == UNMAPPED_OFFSET){
+        if(mapped_offset == UNMAPPED_OFFSET){
             ASSERT_ON(is_read_only);
-            offset = it->second.first = alloc_offset(addr, size);
+            iv_result.value() = mapped_offset = alloc_offset(addr, size);
         }
+
         LOG_DEBUG("VirtAddressMapping::lookup {%lx, %lu}->[%lu, %lu]",
-            addr, size, offset + addr_offset, va_size - addr_offset);
+            addr, size, mapped_offset + addr_offset, va_size - addr_offset);
         LOG_DEBUG("VirtAddressMapping::lookup va_size=%lu addr_offset=%ld va_start=%lx addr=%lx",
             va_size, addr_offset, va_start, addr);
-        return std::make_pair(offset + addr_offset,
+        return std::make_pair(mapped_offset + addr_offset,
             va_size - addr_offset);
     }
-protected:
-    size_t alloc_offset(size_t addr, size_t size){
-        auto it = empty.lower_bound(size);
-        if(it != empty.end()){
-            //check what left
-            size_t base_offset = it->second;
-            auto newoffset = base_offset + size;
-            auto newsize = it->first - size;
-            empty.erase(it);
-            if(newsize >= MIN_EMPTYSIZE){
-                empty.emplace(newsize, newoffset);
-            }
-            LOG_DEBUG("VirtAddressMapping::alloc_offset {%lx, %lu}->[%lu, %lu]",
-                addr, size, base_offset, size);
-            return base_offset;
-        } else {
-            //if nothing, allocate new range at the end
-            max.first = addr + size;
-            max.second += size;
-            LOG_DEBUG("VirtAddressMapping::alloc_offset {%lx, %lu}->[%lu, %lu]",
-                addr, size, max.second - size, size);
-            return max.second - size;
-        }
-    }
-public:
     //alloc new range
     size_t alloc(uint64_t addr, size_t size){
         size_t offset = alloc_offset(addr, size);
-        m.emplace(addr, std::make_pair(offset, size));
+        auto res = intervals.insert(addr, end_offset(addr, size), offset);
+        ASSERT_ON(res != Result::Success);
         return offset;
     }
 
     //when we get new addres, or delete range
     Result alloc_unmapped(uint64_t addr, size_t size){
-        m.emplace(addr, std::make_pair(UNMAPPED_OFFSET, size));
-        return Result::Success;
+        auto res = intervals.insert(addr, end_offset(addr, size), UNMAPPED_OFFSET);
+        return res;
     }
 
+    //unmap [addr, addr + size]
     Result del(uint64_t addr, size_t size){
-        auto it = m.lower_bound(addr);
-        if(it == m.end())
-            return Result::Failure;
-        auto addr_start = it->first;
-        auto addr_size = it->second.second;
-        auto addr_finish = it->first + addr_size;
-        size_t offset = it->second.first;
-        ASSERT_ON(addr_start < addr);
-        ASSERT_ON(addr_finish > addr + size);
-
-        if(offset == UNMAPPED_OFFSET){
-            return Result::Failure;
-        }
-
-        if(addr == addr_start) {
-            it->second.first = UNMAPPED_OFFSET;
-            if(addr_size != size){
-                m.emplace(addr_start + size, std::make_pair(offset + size, addr_size - size));
+        size_t count = 0;
+        auto add_to_empty = [&]([[maybe_unused]] auto iv_result, uint64_t va_start, uint64_t va_end, size_t offset){
+            auto va_size = size_from_start_end(va_start, va_end);
+            if (offset == UNMAPPED_OFFSET || va_size == 0){
+                return;
             }
-        } else if(addr_finish == addr + size){
-            it->second.second -= size;
-            m.emplace(addr, std::make_pair(UNMAPPED_OFFSET, size));
-        } else {
-            //in the middle
-            //before [addr_start, addr)
-            //after  [addr + size, addr_finish)
-            it->second.first = UNMAPPED_OFFSET;
-            it->second.second = addr - addr_start - 1;
-            m.emplace(addr + size,
-                std::make_pair(offset + addr - addr_start + size, addr_finish - addr - size - 1));
-        }
-        empty.emplace(size, offset); //TODO merge neighbours
+            count++;
+            empty.add(va_size, offset); //TODO merge neighbours. maybe via ranges?
+        };
+        intervals.for_each_interval(addr, end_offset(addr, size), std::move(add_to_empty));
+        RET_ON_FAIL(!count);
+        auto res = intervals.set(addr, end_offset(addr, size), UNMAPPED_OFFSET);
 
-        return Result::Success;
+        return res;
     }
     Result expand(StorageAddress address, size_t size){
         //allocate new range with StorageAddress{address.addr + addr.size, size};
-        //expand end of file
         if(max.first == address.addr + address.size){
-            auto it = m.lower_bound(address.addr);
-            //TODO check range
-            if(it == m.end()){
-                return Result::Failure;
-            }
-            it->second.second += size;
-            max.first += size;
-            max.second += size;
-            return Result::Success;
+            //expand end of file
+            auto expand_offset = [this](decltype(intervals)::IntervalResult &iv_result, size_t old_end, size_t new_end){
+                if(!iv_result.found()){
+                    return;
+                }
+                auto offset = iv_result.value();
+                auto size = new_end - old_end;
+                offset += size;
+                max.first += size;
+                max.second += size;
+            };
+            auto res = intervals.expand(address.addr, end_offset(address.addr, address.size), expand_offset);
+            RET_ON_SUCCESS(res);
+            //failed to expand, just allocate new
         }
         //otherwise allocane new mapping
         alloc(address.addr + address.size, size);
         return Result::Success;
     }
 
-    size_t get_size_extra(size_t extra = 0) const {
-        size_t sum = 0;
-        sum += sizeof(size_t) + sizeof(decltype(m)::value_type) * (m.size() + extra);
-        sum += sizeof(size_t) + sizeof(decltype(empty)::value_type) * (empty.size() + extra);
-        sum += sizeof(size_t) + sizeof(decltype(unmapped)::value_type) * (unmapped.size() + extra);
-        sum += sizeof(max);
-        return sum;
-    }
-
     //only sequential support
     Result serializeImpl(StorageBuffer<> &buffer) const{
-        ASSERT_ON(get_size_extra() > buffer.allocated());
+        ASSERT_ON(getSizeImpl() > buffer.allocated());
         size_t offset = 0;
-        auto m_size = m.size();
-        auto buf = buffer.offset_advance(offset, szeimpl::size(m_size));
-        szeimpl::s(m_size, buf);
-        for(auto it: m){
-            buf = buffer.offset_advance(offset, szeimpl::size(it));
-            szeimpl::s(it, buf);
-        }
-        auto unmapped_size = unmapped.size();
-        buf = buffer.offset_advance(offset, szeimpl::size(unmapped_size));
-        szeimpl::s(unmapped_size, buf);
-        for(auto it: unmapped){
-            buf = buffer.offset_advance(offset, szeimpl::size(it));
-            szeimpl::s(it, buf);
-        }
-        auto empty_size = empty.size();
-        buf = buffer.offset_advance(offset, szeimpl::size(empty_size));
-        szeimpl::s(empty_size, buf);
-        for(auto it: empty){
-            buf = buffer.offset_advance(offset, szeimpl::size(it));
-            szeimpl::s(it, buf);
-        }
+        auto buf = buffer.offset_advance(offset, szeimpl::size(intervals));
+        szeimpl::s(intervals, buf);
+
+        buf = buffer.offset_advance(offset, szeimpl::size(unmapped));
+        szeimpl::s(unmapped, buf);
+
+        buf = buffer.offset_advance(offset, szeimpl::size(empty));
+        szeimpl::s(empty, buf);
+
         buf = buffer.offset_advance(offset, szeimpl::size(max));
         szeimpl::s(max, buf);
-        
+
         return Result::Success;
     }
 
@@ -195,42 +155,36 @@ public:
 
         size_t offset = 0;
         auto buf = buffer;
-        auto num1 = szeimpl::d<decltype(m)::size_type>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(num1));
-        for(size_t i = 0; i < num1; i++){
-            auto val = szeimpl::d<decltype(m)::value_type>(buf);
-            buf = buffer.advance_offset(offset, szeimpl::size(val));
-            vam.m.emplace(val);
-        }
-        auto num2 = szeimpl::d<decltype(unmapped)::size_type>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(num2));
-        for(size_t i = 0; i < num2; i++){
-            auto val = szeimpl::d<decltype(unmapped)::value_type>(buf);
-            buf = buffer.advance_offset(offset, szeimpl::size(val));
-            vam.unmapped.emplace(val);
-        }
-        auto num3 = szeimpl::d<decltype(empty)::size_type>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(num3));
-        for(size_t i = 0; i < num3; i++){
-            auto val = szeimpl::d<decltype(empty)::value_type>(buf);
-            buf = buffer.advance_offset(offset, szeimpl::size(val));
-            vam.empty.emplace(val);
-        }
-        vam.max = szeimpl::d<decltype(max)>(buf);
+
+        vam.intervals = szeimpl::d<decltype(vam.intervals)>(buf);
+        buf = buffer.advance_offset(offset, szeimpl::size(vam.intervals));
+
+        vam.unmapped = szeimpl::d<decltype(vam.unmapped)>(buf);
+        buf = buffer.advance_offset(offset, szeimpl::size(vam.unmapped));
+
+        vam.empty = szeimpl::d<decltype(vam.empty)>(buf);
+        buf = buffer.advance_offset(offset, szeimpl::size(vam.empty));
+
+        vam.max = szeimpl::d<decltype(vam.max)>(buf);
 
         return vam;
     }
 
     size_t getSizeImpl() const {
-        return get_size_extra(0);
+        size_t size = 0;
+        size += szeimpl::size(intervals);
+        size += szeimpl::size(unmapped);
+        size += szeimpl::size(empty);
+        size += szeimpl::size(max);
+        return size;
     }
 };
 
 template<CRMA R>
-class SimpleStorage: public DataStorage{
+class SimpleStorage: public DataStorageBase{
     R rma;
 
-    //virtual address space => file mapping
+    //address space => file mapping
     //mapping -> at the end of the file when close
     //Short metadate in the beginning of the file of fixed size
     static constexpr uint32_t MAGIC = 0xFE2B0CC7;
@@ -267,38 +221,38 @@ class SimpleStorage: public DataStorage{
         }
     }
 public:
-    SimpleStorage(R &&rma, size_t static_size, uint32_t id): DataStorage(id), rma(std::move(rma)) {
+    SimpleStorage(R &&rma, size_t static_size, uint32_t id): DataStorageBase(id), rma(std::move(rma)) {
         init_simple_storage(static_size);
     }
-    SimpleStorage(R &&rma, uint32_t id = DataStorage::UniqueIDInterface::DEFAULT): DataStorage(id), rma(std::move(rma)) {
+    SimpleStorage(R &&rma, uint32_t id = DataStorageBase::UniqueIDInterface::DEFAULT): DataStorageBase(id), rma(std::move(rma)) {
         init_simple_storage(sizeof(StaticHeader));
     }
 
-    StorageAddress get_static_section() override {
+    StorageAddress get_static_section()  {
         return metadata.static_addr;
     }
 
     // find random address from definately unused blocks
-    StorageAddress get_random_address(size_t size) override {
+    StorageAddress get_random_address(size_t size)  {
         uint64_t addr = metadata.ra.get_random_address(size);
         mapping.alloc_unmapped(addr, size);
         return StorageAddress{addr, size};
     }
 
     // expand existing address range
-    StorageAddress expand_address(const StorageAddress &address, size_t size) override {
+    StorageAddress expand_address(const StorageAddress &address, size_t size)  {
         mapping.expand(address, size);
         return StorageAddress{address.addr + address.size, size};
     }
 
-    virtual Result write(const StorageAddress &addr, const StorageBuffer<> &buffer) override {
+    Result write(const StorageAddress &addr, const StorageBuffer<> &buffer)  {
         auto [offset, size] = mapping.lookup(addr.addr, addr.size);
         LOG_INFO("Storage::write [%lu,%lu]", offset, size);
         ASSERT_ON(size < buffer.size());
         ASSERT_ON(offset == 0);
         return rma.write(offset, buffer);
     }
-    virtual Result erase(const StorageAddress &addr) override{
+    Result erase(const StorageAddress &addr) {
         //stub, no implementation
         return mapping.del(addr.addr, addr.size);
     }
@@ -307,7 +261,7 @@ public:
 	Result read(const StorageAddress &addr, StorageBuffer<T> &buffer){
 		return read(addr, buffer.template cast<void>());
 	}
-    virtual Result read(const StorageAddress &addr, StorageBuffer<> &buffer) override {
+    Result read(const StorageAddress &addr, StorageBuffer<> &buffer)  {
         auto [offset, size] = mapping.lookup(addr.addr, addr.size, true);
         LOG_INFO("Storage::read [%lu,%lu]", offset, size);
         ASSERT_ON(size > addr.size);
@@ -316,35 +270,30 @@ public:
         return rma.read(offset, addr.size, buffer);
     }
 
-    virtual StorageBuffer<> writeb(const StorageAddress &addr) override{
+    StorageBuffer<> writeb(const StorageAddress &addr) {
         auto [offset, size] = mapping.lookup(addr.addr, addr.size);
         ASSERT_ON(size < addr.size);
         ASSERT_ON(offset == 0);
         return rma.writeb(offset, addr.size);
     }
-    virtual StorageBufferRO<> readb(const StorageAddress &addr) override{
+    StorageBufferRO<> readb(const StorageAddress &addr) {
         auto [offset, size] = mapping.lookup(addr.addr, addr.size, true);
         ASSERT_ON(size < addr.size);
         ASSERT_ON(offset == 0);
         return rma.readb(offset, addr.size);
     }
-    virtual Result commit([[maybe_unused]] const StorageBuffer<> &buffer) override{
+    Result commit([[maybe_unused]] const StorageBuffer<> &buffer) {
         //stub, no implementation
         return Result::Success;
     }
-    virtual Result commit([[maybe_unused]] const StorageBufferRO<> &buffer) override{
+    Result commit([[maybe_unused]] const StorageBufferRO<> &buffer) {
         //stub, no implementation
         return Result::Success;
     }
 
-    virtual Stat stat([[maybe_unused]] const StorageAddress &addr) override{
-        //stub, no implementation
-        return Stat{};
-    }
-
-    virtual ~SimpleStorage(){
+    ~SimpleStorage(){
         //serialize to rma
-        metadata.va_size = mapping.get_size_extra(1);
+        metadata.va_size = szeimpl::size(mapping) + VirtAddressMapping::EXTRA_SPARE_SPACE;
         metadata.va_offset = mapping.alloc(metadata.va_addr, metadata.va_size);
         StorageBuffer vmap_buf{rma.writeb(metadata.va_offset, metadata.va_size)};
         szeimpl::s(mapping, vmap_buf);
@@ -354,13 +303,13 @@ public:
         *fm = metadata;
     }
 
-    virtual Result serializeImpl(StorageBuffer<> &buffer) const override{
+    Result serializeImpl(StorageBuffer<> &buffer) const {
         return szeimpl::s(rma, buffer);
     }
-    static SimpleStorage<R> deserializeImpl(const StorageBufferRO<> &buffer, uint32_t id = DataStorage::UniqueIDInterface::DEFAULT) {
+    static SimpleStorage<R> deserializeImpl(const StorageBufferRO<> &buffer, uint32_t id = DataStorageBase::UniqueIDInterface::DEFAULT) {
         return SimpleStorage<R>{R{szeimpl::d<R>(buffer)}, id};
     }
-    virtual size_t getSizeImpl() const{
+    size_t getSizeImpl() const{
         return szeimpl::size(rma);
     }
 };

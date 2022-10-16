@@ -7,7 +7,7 @@
 #include <storage/ObjectInstanceStorage.hpp>
 
 //where to store all objects, without moving existing objects(which will invalidate runtime)
-template<size_t TSize, CStorageImpl Storage, AllocationPattern A, size_t MAX_OBJS>
+template<size_t TSize, CStorage Storage, AllocationPattern A, size_t MAX_OBJS>
 class ObjectAddressStorage{
     Storage &storage;
 
@@ -83,7 +83,7 @@ public:
 //TODO special case for trivially copyable to instantiate at the memory with const or not
 //TODO specialize MAX_OBJS in range < 1K, < 10K etc.
 
-template<CSerializable T, CStorageImpl Storage, AllocationPattern A, size_t MAX_OBJS>
+template<CSerializable T, CStorage Storage, AllocationPattern A, size_t MAX_OBJS>
 requires CSerializableFixedSize<T>
 class ObjectStorageImpl{
     static constexpr size_t TSize = sizeof(T);
@@ -247,7 +247,7 @@ public:
 };
 #endif
 
-template<CStorageImpl Storage, size_t MAX_OBJS = std::numeric_limits<uint8_t>::max()>
+template<CStorage Storage, size_t MAX_OBJS = std::numeric_limits<uint8_t>::max()>
 class GenericObjectStorage{
     Storage &storage;
     StaticHeader header;
