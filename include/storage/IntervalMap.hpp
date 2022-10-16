@@ -2,6 +2,7 @@
 
 #include <map>
 #include <tuple>
+#include <ranges>
 
 #include <storage/Utils.hpp>
 #include <storage/StorageUtils.hpp>
@@ -43,10 +44,29 @@ class Merge<T>{
 template<typename K, typename V>
 class IntervalMap{
     std::map<K, std::pair<K, V>> m; //[start] -> (end, V)
+    using M_TYPE = decltype(m);
 
     IntervalMap(std::map<K, std::pair<K, V>> &&m): m(m) {}
 
-    auto find_it(const K &k, bool check_value = true) -> decltype(m)::iterator {
+    template<typename T>
+    T next(const T &t){
+        T new_t = t;
+        return ++new_t;
+    }
+    template<typename T>
+    T prev(const T &t){
+        T new_t = t;
+        return --new_t;
+    }
+    auto emplace(const K &start, const K &end, const V &val) -> std::ranges::iterator_t<M_TYPE> {
+        auto [it, inserted] = m.emplace(start, std::make_pair(end, val));
+        LOG_INFO("inserting [%lu, %lu]", start, end);
+        ASSERT_ON(!inserted);
+        return it;
+    }
+
+    //TODO rework it to return Interval Result
+    auto find_it(const K &k, bool check_value = true) -> std::ranges::iterator_t<M_TYPE> {
         auto it = m.upper_bound(k);
         if(it != m.end()){
             --it;
@@ -61,7 +81,7 @@ class IntervalMap{
         }
         return m.end();
     }
-    auto find_it(const K &k, bool check_value = true) const -> decltype(m)::const_iterator {
+    auto find_it(const K &k, bool check_value = true) const -> M_TYPE::const_iterator {
         auto it = m.upper_bound(k);
         if(it != m.end()){
             --it;
@@ -126,9 +146,7 @@ class IntervalMap{
             }
         }
         if(!merged){
-            auto [it_new, inserted] = m.emplace(start, std::make_pair(end, v));
-            LOG_INFO("inserting [%lu, %lu]", start, end);
-            ASSERT_ON(!inserted);
+            emplace(start, end, v);
         }
 
         return Result::Success;
@@ -146,33 +164,26 @@ class IntervalMap{
                     return Result::Success;
             }
         }
+        auto iv_result = IntervalResult{it};
 
-        auto iv_start = it->first;
-        auto iv_end = it->second.first;
-        V &v = it->second.second;
+        auto [iv_start, iv_end] = iv_result.range();
+        auto v = iv_result.value();
         //auto iv_size = iv_end - iv_start;
         ASSERT_ON(iv_start > iv_end);
         auto it_next = std::next(it);
 
         if(start > iv_start && start <= iv_end){
             //delete [start, iv_end], keep [iv_start, start)
-            it->second.first = start;
-            it->second.first--; // start) or start - 1]
+            iv_result.end() = prev(start); // start) or start - 1]
             if(end < iv_end){
                 //delete [start, end], keep [iv_start, start), (end, iv_end] with duplicated V
-                K new_start = end; //(end or [end + 1
-                auto [it_new, inserted] = m.emplace(++new_start, std::make_pair(iv_end, v));
-                ASSERT_ON(!inserted);
-                it = it_new;
+                it = emplace(next(end), iv_end, v); //(end or [end + 1
             }
         } else if(start <= iv_start && end >= iv_start) {
             if(end < iv_end){
                 //delete [iv_start, end], keep (end, iv_end]
                 //reinsert element
-                auto nh = m.extract(iv_start);
-                nh.key() = end;
-                nh.key()++; //[end + 1 or (end
-                m.insert(std::move(nh));
+                iv_result.updateStart(m, next(end)); //[end + 1 or (end
             } else {
                 //delete [iv_start, iv_end]
                 m.erase(it);
@@ -184,12 +195,12 @@ class IntervalMap{
 
         if(end > iv_end && it_next != m.end()){
             //N-step range deletion
-    
-            K iv2_start = it_next->first;
-            //K iv2_end = it_next->second.first;
+            iv_result = IntervalResult{it_next};
+            auto [iv2_start, iv2_end] = iv_result.range();
             ASSERT_ON(iv2_start <= iv_start);
             if(iv2_start <= end){
                 //recursive
+                //TODO rework to do for_each_interval()
                 return del_impl(iv2_start, end, iteration + 1);
             }
         }
@@ -201,6 +212,22 @@ public:
     class IntervalResultImpl{
         bool is_found;
         T it;
+    protected:
+        friend class IntervalMap;
+        T &iter(){ return it; }
+        //shall only be used when all checks verified
+        K &end(){ return it->second.first; }
+        //invalidated iter()
+        bool updateStart(M_TYPE &m, K &&new_start){
+            auto nh = m.extract(it);
+            nh.key() = new_start;
+            auto insert_ret = m.insert(std::move(nh));
+            it = insert_ret.position;
+            if (it == m.end() || !insert_ret.inserted){
+                is_found = false;
+            }
+            return is_found;
+        }
     public:
         IntervalResultImpl(T it): is_found(true), it(it) {}
         IntervalResultImpl(): is_found(false) {}
@@ -225,8 +252,8 @@ public:
         }
         //merge(IntervalResult other, M m), M - merge<V> object
     };
-    using ConstIntervalResult = IntervalResultImpl<typename decltype(m)::const_iterator>;
-    using IntervalResult = IntervalResultImpl<typename decltype(m)::iterator>;
+    using ConstIntervalResult = IntervalResultImpl<typename M_TYPE::const_iterator>;
+    using IntervalResult = IntervalResultImpl<std::ranges::iterator_t<M_TYPE>>;
     IntervalMap(){}
 
     //merge<V> -> merge(V&v1_dst, V&&v2), mergeN(V&v1_dst, std::vector<V> &vec)
@@ -296,6 +323,7 @@ public:
         return find_it(k) != m.end();
     }
     //TODO unit test
+    //TODO only expanding end, need expanding start as well
     template<typename F>
     Result expand(const K &start, const K &new_end, F &&f){
         //find range with start, ensure it is [<start, new_end)
@@ -305,10 +333,13 @@ public:
         }
         auto iv_result = IntervalResult{it};
         auto [iv_start, iv_end] = iv_result.range();
-        ASSERT_ON(iv_start > start);
+        ASSERT_ON(iv_start > start); //TODO can be implemented as well
+        ASSERT_ON(new_end < start);
         if (iv_end >= new_end){
-            //no need to expand
-            f(iv_result, new_end, new_end); //(iv_result, new_end, iv_end)??
+            //no need to expand, shrink
+            K old_end = iv_end;
+            iv_result.end() = new_end;
+            f(iv_result, old_end, new_end);
             return Result::Success;
         }
         //expand range if can do it, return false if fails
@@ -324,10 +355,25 @@ public:
             //okay, continue updating range and value
         }
         K old_end = iv_end;
-        //TODO wrap it as iv_result.set()
-        it->second.first = new_end;
-        it->second.second += new_end - iv_end;
+        iv_result.value() += new_end - iv_end;
+        iv_result.end() = new_end;
         f(iv_result, old_end, new_end);
+
+        return Result::Success;
+    }
+
+    //TODO unit test
+    template<typename F>
+    Result split(IntervalResult &iv_result, const K &mid_left, F &&f){
+        auto [iv_start, iv_end] = iv_result.range();
+        ASSERT_ON(mid_left >= iv_end); //or maybe RET_ON_FAIL()
+        ASSERT_ON(iv_start > mid_left);
+        
+        auto mid_right = mid_left; mid_right++;
+        auto val_right = f(iv_result.value(), iv_start, mid_left, mid_right, iv_end);
+        iv_result.end() = mid_left;
+
+        emplace(mid_right, iv_end, val_right);
 
         return Result::Success;
     }

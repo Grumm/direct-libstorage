@@ -67,7 +67,19 @@ public:
 
         if(mapped_offset == UNMAPPED_OFFSET){
             ASSERT_ON(is_read_only);
-            iv_result.value() = mapped_offset = alloc_offset(addr, size);
+            mapped_offset = alloc_offset(addr, size);
+            iv_result.value() = mapped_offset;
+            //map only [iv_start, iv_start + size)
+            if(size != va_size){
+                //iv_result.value() = mapped_offset
+                auto split_interval = []([[maybe_unused]]size_t &left_val, [[maybe_unused]]const uint64_t &left1,
+                [[maybe_unused]]const uint64_t &right1, [[maybe_unused]]const uint64_t &left2,
+                [[maybe_unused]]const uint64_t &right2) -> size_t {
+                        //no need to change left_val since it's offset start, not the size
+                        return UNMAPPED_OFFSET;
+                };
+                intervals.split(iv_result, end_offset(va_start, size), split_interval);
+            }
         }
 
         LOG_DEBUG("VirtAddressMapping::lookup {%lx, %lu}->[%lu, %lu]",

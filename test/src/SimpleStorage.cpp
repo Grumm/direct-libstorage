@@ -260,7 +260,7 @@ TEST(SimpleStorage, SerializeDeserializeSimple){
 
     StorageAddress address1;
     {
-          SimpleFileStorage<FILESIZE> storage{FileRMA<FILESIZE>{filename}};
+        SimpleFileStorage<FILESIZE> storage{FileRMA<FILESIZE>{filename}};
 
         address1 = storage.get_random_address(100);
         EXPECT_NE(address1.addr, (uint64_t)0UL);
@@ -279,7 +279,7 @@ TEST(SimpleStorage, SerializeDeserializeSimple){
         EXPECT_EQ(Result::Success, storage.commit(readb1));
     }
     {
-          SimpleFileStorage<FILESIZE> storage{FileRMA<FILESIZE>{filename}};
+        SimpleFileStorage<FILESIZE> storage{FileRMA<FILESIZE>{filename}};
 
         StorageBufferRO readb1 = storage.readb(address1);
         for(size_t i = 0; i < 100; i++){
