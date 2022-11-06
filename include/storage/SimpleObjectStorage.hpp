@@ -9,7 +9,7 @@
 
 
 //Implements CObjectStorageImpl
-//Can store any object. No matter the sze::size of T
+//Can store any object. No matter the sze::size() of T
 template<typename T, typename Storage, size_t MAX_OBJS = std::numeric_limits<size_t>::max()>
 requires CStorage<Storage, T>
 class SimpleObjectStorage{
@@ -85,6 +85,7 @@ class SimpleObjectStorage{
         allocState(index);
         return index;
     }
+    
     void putImpl(const T &t, size_t index, bool check_index){
         if((check_index && !has(index)) || !check_index){
             count++;
@@ -143,12 +144,14 @@ public:
         setState(index, true);
         auto addr = getAddrByIndex(index);
         auto t = deserialize<T>(storage, addr);
-        auto [it2] = objects.emplace(index, t); //ideally we should add it to tmp_objects. question would be it's lifetime
+        auto [it2, emplaced] = objects.emplace(index, t); //ideally we should add it to tmp_objects. question would be it's lifetime
+        //TODO throw if !emplaced
         return it2->second;
     }
     const T &getCRef(size_t index){
         return getRef(index);
     }
+
     void clear(size_t i){
         if(!has(i)){
             return;
@@ -179,7 +182,7 @@ public:
         objects.erase(index);
         putImpl(t, index, true);
         if(access == ObjectStorageAccess::Keep){
-            objects.emplace(std::move(t));
+            objects.emplace(index, std::forward<T>(t));
         }
     }
     size_t put(T &&t, ObjectStorageAccess access){
