@@ -7,8 +7,8 @@
 
 namespace {
 
-static constexpr size_t MEMORYSIZE = 20;  // 1MB
-static constexpr size_t FILESIZE = 20;  // 1MB
+static constexpr size_t MEMORYSIZE = 22;  // 4MB
+static constexpr size_t FILESIZE = 22;  // 4MB
 static const std::string filename1{"/tmp/.UniqueDataStoragePtrSerializeDeserialize1"};
 static const std::string filename2{"/tmp/.UniqueDataStoragePtrSerializeDeserialize2"};
 
@@ -35,12 +35,13 @@ TEST(SimpleMultiLevelKeyMapTest, SimpleSerializeDeserialize) {
   EXPECT_EQ(smlkm_res.get(0, 5, 'L').first, false);
 }
 
-using TestVFCType1 =
-    VirtualFileCatalog<SimpleRamStorage<MEMORYSIZE>, int, char>;
+using TestVFCType1 = VirtualFileCatalog<SimpleRamStorage<MEMORYSIZE>, int, char>;
+
 TEST(VirtualFileCatalogTest, SimpleCreateLookup) {
   SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   {
-    TestVFCType1 vfc1{storage};
+    TestVFCType1 _vfc1{storage};
+    auto &vfc1 = _vfc1.get().get();
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
     EXPECT_EQ(vfc1.add('d', 2), Result::Success);
     EXPECT_EQ(vfc1.get('d'), std::make_pair(true, 2));
@@ -51,13 +52,17 @@ TEST(VirtualFileCatalogTest, SimpleCreateLookup) {
 
 TEST(VirtualFileCatalogTest, SimpleSerializeDeserialize) {
   SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+  StorageAddress vfcaddr;
   {
-    TestVFCType1 vfc1{storage};
+    TestVFCType1 _vfc1{storage};
+    auto &vfc1 = _vfc1.get().get();
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
     EXPECT_EQ(vfc1.add('d', 2), Result::Success);
+    serialize(storage, _vfc1, vfcaddr);
   }
   {
-    TestVFCType1 vfc2{storage};
+    auto _vfc2 = deserialize<TestVFCType1>(storage, vfcaddr, storage, storage);
+    auto &vfc2 = _vfc2.get().get();
     EXPECT_EQ(vfc2.get('d'), std::make_pair(true, 2));
     EXPECT_EQ(vfc2.get('c'), std::make_pair(true, 3));
     EXPECT_EQ(vfc2.get('e').first, false);
@@ -66,21 +71,27 @@ TEST(VirtualFileCatalogTest, SimpleSerializeDeserialize) {
 
 TEST(VirtualFileCatalogTest, SimpleSerializeDeserializeAddTwice) {
   SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+  StorageAddress vfcaddr;
   {
-    TestVFCType1 vfc1{storage};
+    TestVFCType1 _vfc1{storage};
+    auto &vfc1 = _vfc1.get().get();
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
     EXPECT_EQ(vfc1.add('d', 2), Result::Success);
+    serialize(storage, _vfc1, vfcaddr);
   }
   {
-    TestVFCType1 vfc2{storage};
+    auto _vfc2 = deserialize<TestVFCType1>(storage, vfcaddr, storage, storage);
+    auto &vfc2 = _vfc2.get().get();
     EXPECT_EQ(vfc2.get('d'), std::make_pair(true, 2));
     EXPECT_EQ(vfc2.get('c'), std::make_pair(true, 3));
     EXPECT_EQ(vfc2.get('e').first, false);
     EXPECT_EQ(vfc2.add('e', 7), Result::Success);
     EXPECT_EQ(vfc2.get('e'), std::make_pair(true, 7));
+    serialize(storage, _vfc2, vfcaddr);
   }
   {
-    TestVFCType1 vfc3{storage};
+    auto _vfc3 = deserialize<TestVFCType1>(storage, vfcaddr, storage, storage);
+    auto &vfc3 = _vfc3.get().get();
     EXPECT_EQ(vfc3.get('d'), std::make_pair(true, 2));
     EXPECT_EQ(vfc3.get('c'), std::make_pair(true, 3));
     EXPECT_EQ(vfc3.get('e'), std::make_pair(true, 7));
@@ -90,18 +101,24 @@ TEST(VirtualFileCatalogTest, SimpleSerializeDeserializeAddTwice) {
 
 TEST(VirtualFileCatalogTest, SimpleSerializeDeserializeAddDeleteTwice) {
   SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+  StorageAddress vfcaddr;
   {
-    TestVFCType1 vfc1{storage};
+    TestVFCType1 _vfc1{storage};
+    auto &vfc1 = _vfc1.get().get();
     EXPECT_EQ(vfc1.add('c', 3), Result::Success);
     EXPECT_EQ(vfc1.add('d', 2), Result::Success);
+    serialize(storage, _vfc1, vfcaddr);
   }
   {
-    TestVFCType1 vfc2{storage};
+    auto _vfc2 = deserialize<TestVFCType1>(storage, vfcaddr, storage, storage);
+    auto &vfc2 = _vfc2.get().get();
     EXPECT_EQ(vfc2.add('e', 7), Result::Success);
     vfc2.del('c');
+    serialize(storage, _vfc2, vfcaddr);
   }
   {
-    TestVFCType1 vfc3{storage};
+    auto _vfc3 = deserialize<TestVFCType1>(storage, vfcaddr, storage, storage);
+    auto &vfc3 = _vfc3.get().get();
     EXPECT_EQ(vfc3.get('d'), std::make_pair(true, 2));
     EXPECT_EQ(vfc3.get('c').first, false);
     EXPECT_EQ(vfc3.get('e'), std::make_pair(true, 7));
@@ -115,18 +132,22 @@ using TestVFCType2 =
 TEST(VirtualFileCatalogTest, UniqueDataStoragePtrSerializeDeserialize) {
   SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
   UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)> uid_s{storage};
+  StorageAddress vfcaddr;
   {
     auto storage1 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename1}, 3};
     auto storage2 = new SimpleFileStorage<FILESIZE>{FileRMA<FILESIZE>{filename2}, 7};
     UniqueDataStorage uds1{storage1};
     UniqueDataStorage uds2{storage2};
   
-    TestVFCType2 vfc1{storage};
+    TestVFCType2 _vfc1{storage};
+    auto &vfc1 = _vfc1.get().get();
     EXPECT_EQ(vfc1.add(15000, 0xfffffffffe, uds1), Result::Success);
     EXPECT_EQ(vfc1.add(-13, 114, uds2), Result::Success);
+    serialize(storage, _vfc1, vfcaddr);
   }
   {
-    TestVFCType2 vfc2{storage};
+    auto _vfc2 = deserialize<TestVFCType2>(storage, vfcaddr, storage, storage);
+    auto &vfc2 = _vfc2.get().get();
     auto r1 = vfc2.get(15000, 0xfffffffffe);
     auto r2 = vfc2.get(-13, 114);
     EXPECT_TRUE(r1.first);
@@ -141,6 +162,7 @@ TEST(VirtualFileCatalogTest, UDSPtrSerializeDeserializeInstantiate) {
   UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)> uid_s{storage};
   StorageAddress addr1;
   StorageAddress addr2;
+  StorageAddress vfcaddr;
   {
 	  std::filesystem::remove(std::filesystem::path{filename1});
 	  std::filesystem::remove(std::filesystem::path{filename2});
@@ -161,12 +183,15 @@ TEST(VirtualFileCatalogTest, UDSPtrSerializeDeserializeInstantiate) {
     uid_s.registerInstance(*storage1);
     uid_s.registerInstance(*storage2);
 
-    TestVFCType2 vfc1{storage};
+    TestVFCType2 _vfc1{storage};
+    auto &vfc1 = _vfc1.get().get();
     EXPECT_EQ(vfc1.add(15000, 0xfffffffffe, uds1), Result::Success);
     EXPECT_EQ(vfc1.add(-13, 114, uds2), Result::Success);
+    serialize(storage, _vfc1, vfcaddr);
   }
   {
-    TestVFCType2 vfc2{storage};
+    auto _vfc2 = deserialize<TestVFCType2>(storage, vfcaddr, storage, storage);
+    auto &vfc2 = _vfc2.get().get();
     auto [has1, val1] = vfc2.get(15000, 0xfffffffffe);
     auto [has2, val2] = vfc2.get(-13, 114);
     EXPECT_TRUE(has1);
@@ -201,6 +226,7 @@ TEST(VirtualFileCatalogTest, UDSPtrSDInstantiateSD) {
   StorageAddress addr_s1;
   StorageAddress addr_s2;
   StorageAddress addr_uids;
+  StorageAddress vfcaddr;
   {
     UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)> uid_s{storage};
 	  std::filesystem::remove(std::filesystem::path{filename1});
@@ -228,13 +254,16 @@ TEST(VirtualFileCatalogTest, UDSPtrSDInstantiateSD) {
 
     addr_uids = serialize<StorageAddress>(storage, uid_s);
 
-    TestVFCType2 vfc1{storage};
+    TestVFCType2 _vfc1{storage};
+    auto &vfc1 = _vfc1.get().get();
     EXPECT_EQ(vfc1.add(15000, 0xfffffffffe, uds1), Result::Success);
     EXPECT_EQ(vfc1.add(-13, 114, uds2), Result::Success);
+    serialize(storage, _vfc1, vfcaddr);
   }
   {
     auto uid_s = deserialize<UniqueIDStorage<SimpleFileStorage<FILESIZE>, decltype(storage)>>(storage, addr_uids, storage);
-    TestVFCType2 vfc2{storage};
+    auto _vfc2 = deserialize<TestVFCType2>(storage, vfcaddr, storage, storage);
+    auto &vfc2 = _vfc2.get().get();
     auto r1 = vfc2.get(15000, 0xfffffffffe);
     auto r2 = vfc2.get(-13, 114);
     EXPECT_TRUE(r1.first);

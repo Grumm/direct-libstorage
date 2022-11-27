@@ -123,29 +123,29 @@ size_t size(const T &t){
 
 template<CSerializableImpl T, typename U>
 constexpr Result s(const T &t, StorageBuffer<U> &buffer){
-    LOG("Serialize: %s", typeid(T).name());
+    LOG("Serialize: %s at %p", typeid(T).name(), buffer.get());
     return t.template serializeImpl(buffer.template cast<void>());
 }
 
 template<CBuiltinSerializable T, typename U>
 constexpr Result s(const T &t, StorageBuffer<U> &buffer){
-    LOG("BSerialize: %s", typeid(T).name());
+    LOG("BSerialize: %s at %p", typeid(T).name(), buffer.get());
     return BuiltinSerializeImpl<std::remove_cvref_t<T>>{t}.template serializeImpl(buffer.template cast<void>());
 }
 
 template<typename T, typename U, typename ...Args>
 requires CDeserializableImpl<T, Args...>
-T d(const StorageBufferRO<U> &buffer, Args&&... args) {
-    LOG("Deserialize: %s", typeid(T).name());
-    return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...);
+T d(const StorageBufferRO<U> &buffer, Args& ...args) {
+    LOG("Deserialize: %s from %p", typeid(T).name(), buffer.get());
+    return std::remove_cvref_t<T>::deserializeImpl(buffer.template cast<void>(), std::forward<Args &>(args)...);
 }
 
 template<typename T, typename U, typename ...Args>
 requires CBuiltinDeserializable<T, Args...>
-T d(const StorageBufferRO<U> &buffer, Args&&... args) {
-    LOG("BDeserialize: %s", typeid(T).name());
+T d(const StorageBufferRO<U> &buffer, Args& ...args) {
+    LOG("BDeserialize: %s %p", typeid(T).name(), buffer.get());
     return BuiltinDeserializeImpl<std::remove_cvref_t<T>>::
-        deserializeImpl(buffer.template cast<void>(), std::forward<Args>(args)...).getObj();
+        deserializeImpl(buffer.template cast<void>(), std::forward<Args &>(args)...).getObj();
 }
 
 }
@@ -164,8 +164,29 @@ public:
 
 /****************************************************/
 
-template <typename T>
-struct SerializableMap{
-    size_t size;
-    T data[0];
+template <CSerializable T>
+Result SerializeOne(const StorageBuffer<> &buffer, size_t &offset, const T &t){
+    StorageBuffer buf = buffer.offset_advance(offset, szeimpl::size(t));
+    return szeimpl::s(t, buf);
+}
+
+template <CSerializable ...Args>
+Result SerializeSequentially(const StorageBuffer<> &buffer, size_t &offset, Args... args){
+    auto res = (SerializeOne(buffer, offset, args),...);
+    return res;
+};
+
+
+template <CSerializable T, typename ...Args>
+T DeserializeOne(StorageBufferRO<> &buf, size_t &offset, Args &... args){
+    T t = szeimpl::d<T>(buf, std::forward<Args &>(args)...);
+    size_t new_offset = 0;
+    buf = buf.advance_offset(new_offset, szeimpl::size(t));
+    offset += new_offset;
+    return t;
+}
+
+template <CSerializable ...Args, typename ...Args2>
+std::tuple<Args...> DeserializeSequentially(StorageBufferRO<> &buf, size_t &offset, Args2 &... args){
+    return std::make_tuple(DeserializeOne<Args>(buf, offset, std::forward<Args2 &>(args)...)...);
 };

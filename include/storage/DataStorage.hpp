@@ -159,6 +159,173 @@ struct StaticHeader{
     //TODO serialize deserialize, add type_name<T> check
 };
 
+template<typename T>
+constexpr uint32_t make_magic(){
+    //TODO use typename and constexpr hash function
+    return 0xDEEFAB;
+}
+
+template<typename T, uint32_t STORAGE_MAGIC = make_magic<T>()>
+class TypedObject{
+    T object;
+public:
+    //we assume address already contains the object
+
+    TypedObject(T &&t):
+            object(std::forward<T>(t)) { }
+
+    TypedObject(uint32_t magic, T &&t):
+            object(std::forward<T>(t)) {
+        if (verify(magic)){
+            throw std::invalid_argument("Incorrect magic " + std::to_string(magic) + " != " +
+                                        std::to_string(STORAGE_MAGIC) + " for expected type " + typeid(T).name());
+        }
+    }
+
+    template<typename ...Args>
+    TypedObject(Args& ...args):
+            object(std::forward<Args &>(args)...) { }
+
+    T &get(){ return object; }
+    const T &get() const { return object; }
+
+    static constexpr bool verify(uint32_t magic) {
+        return STORAGE_MAGIC == magic;
+    }
+
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        Result res = Result::Success;
+        size_t offset = 0;
+        return SerializeSequentially(buffer, offset, STORAGE_MAGIC, object);
+    }
+    template<typename ...Args, typename ...Args2>
+    static TypedObject deserializeImpl(const StorageBufferRO<> &buffer, Args2& ...args2, Args& ...args) {
+        size_t offset = 0;
+        auto buf = buffer;
+
+        auto [magic] = DeserializeSequentially<uint32_t>(buf, offset);
+        if(!verify(magic)){
+            return TypedObject{std::forward<Args2 &>(args2)...};
+        }
+
+        auto [object] = DeserializeSequentially<T>(buf, offset, std::forward<Args &>(args)...);
+
+        return TypedObject{object};
+    }
+    static TypedObject deserializeImpl(const StorageBufferRO<> &) { throw std::bad_function_call(); };
+    constexpr size_t getSizeImpl() const {
+        return szeimpl::size(uint32_t{}) + szeimpl::size(object);
+    }
+};
+
+template<CSerializable T, size_t DEFAULT_ALLOC_SIZE = (1UL << 20)>
+class StoredObject{
+protected:
+    StorageAddress address;
+    bool modified;
+    T object;
+public:
+    //assuming address already contains an object
+    template<CStorage Storage, typename ...Args>
+    StoredObject(const StorageAddress &address, Storage &storage, Args... args):
+        address(address),
+        modified{false},
+        object(deserialize<T>(storage, address, std::forward<Args>(args)...)) {}
+
+    //newly created object
+    template<CStorage Storage>
+    StoredObject(T &&t, Storage &storage):
+        address(storage.template get_random_address(DEFAULT_ALLOC_SIZE)),
+        modified{true},
+        object(std::forward<T>(t)) {}
+
+    //newly created object in-place
+    template<CStorage Storage, typename ...Args>
+    StoredObject(Storage &storage, Args& ...args):
+        address(storage.template get_random_address(DEFAULT_ALLOC_SIZE)),
+        modified{true},
+        object(std::forward<Args &>(args)...) {}
+
+    T &get(){ modified = true; return object; }
+    const T &get() const { return object; }
+
+    template<CStorage Storage>
+    void sync(Storage &storage){
+        if(modified){
+            modified = false;
+            serialize(storage, object, address);
+        }
+    }
+    //TODO add copy, move, compare, hash
+
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        Result res = Result::Success;
+        size_t offset = 0;
+        return SerializeSequentially(buffer, offset, address);
+    }
+    template<CStorage Storage, typename ...Args>
+    static StoredObject deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage, Args&& ...args) {
+        size_t offset = 0;
+        auto buf = buffer;
+
+        auto [address] = DeserializeSequentially<StorageAddress>(buf, offset);
+
+        return StoredObject{address, storage, std::forward<Args>(args)...};
+    }
+    static StoredObject deserializeImpl(const StorageBufferRO<> &) { throw std::bad_function_call(); };
+    constexpr size_t getSizeImpl() {
+        return szeimpl::size(StorageAddress{});
+    }
+};
+
+template<CSerializable T, CStorage Storage, size_t DEFAULT_ALLOC_SIZE = (1UL << 20)>
+class AutoStoredObject: public StoredObject<T, DEFAULT_ALLOC_SIZE>{
+    Storage &storage;
+public:
+    //assuming address already contains an object
+    template<typename ...Args>
+    AutoStoredObject(const StorageAddress &address, Storage &storage, Args&& ...args):
+        StoredObject<T, DEFAULT_ALLOC_SIZE>(address, storage, std::forward<Args>(args)...),
+        storage(storage) {}
+
+    //newly created object
+    AutoStoredObject(T &&t, Storage &storage):
+        StoredObject<T, DEFAULT_ALLOC_SIZE>(std::forward<T>(t), storage),
+        storage(storage) {}
+
+    //newly created object in-place
+    template<typename ...Args>
+    AutoStoredObject(Storage &storage, Args& ...args):
+        StoredObject<T, DEFAULT_ALLOC_SIZE>(storage, std::forward<Args &>(args)...),
+        storage(storage) {}
+
+    ~AutoStoredObject(){
+        this->sync(storage);
+    }
+    //TODO add copy, move, compare, hash
+
+    Result serializeImpl(StorageBuffer<> &buffer) const {
+        Result res = Result::Success;
+        size_t offset = 0;
+        return SerializeSequentially(buffer, offset, this->object); //storage.UniqueIDInstance::getUniqueID()
+        //TODO should we serialize storage.UniqueIDInstance::getUniqueID() here as well?
+    }
+    template<typename ...Args>
+    static AutoStoredObject deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage, Args& ...args) {
+        size_t offset = 0;
+        auto buf = buffer;
+
+        auto [object] = DeserializeSequentially<T>(buf, offset, std::forward<Args &>(args)...);
+
+        return AutoStoredObject{std::move(object), storage};
+    }
+
+    static AutoStoredObject deserializeImpl(const StorageBufferRO<> &buffer) { throw std::bad_function_call(); };
+    constexpr size_t getSizeImpl() const {
+        return szeimpl::size(StoredObject<T, DEFAULT_ALLOC_SIZE>::object);
+    }
+};
+
 /*
 For DataStorage we need some way to store some static information.
 Q1: way to identify static address:
@@ -183,9 +350,6 @@ Three options:
 - queried from datastorage, allocated on demand, key->address map
 - queried from datastorage, created automatically, unspecified [V]
 */
-
-
-
 
 #if 0
 

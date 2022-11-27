@@ -104,27 +104,22 @@ public:
     //CSerializableImpl
     Result serializeImpl(StorageBuffer<> &buffer) const {
 		size_t offset = 0;
-        auto m_size = m.size();
-		auto buf = buffer.offset_advance(offset, szeimpl::size(m_size));
-		szeimpl::s(m_size, buf);
+        SerializeSequentially(buffer, offset, m.size());
+
 		for(auto it: m){
-			buf = buffer.offset_advance(offset, szeimpl::size(it));
-			szeimpl::s(it, buf);
+            SerializeSequentially(buffer, offset, it);
 		}
         return Result::Success;
     }
     static SimpleMultiLevelKeyMap<Value, Keys...>
     deserializeImpl(const StorageBufferRO<> &buffer) {
         SimpleMultiLevelKeyMap<Value, Keys...> smlmk;
-
 		size_t offset = 0;
 		auto buf = buffer;
-		auto num = szeimpl::d<typename decltype(smlmk.m)::size_type>(buf);
-		buf = buffer.advance_offset(offset, szeimpl::size(num));
+
+		auto [num] = DeserializeSequentially<typename decltype(smlmk.m)::size_type>(buf, offset);
 		for(size_t i = 0; i < num; i++){
-			auto val = szeimpl::d<typename decltype(smlmk.m)::value_type>(buf);
-            if(i != num - 1)
-			    buf = buffer.advance_offset(offset, szeimpl::size(val));
+			auto [val] = DeserializeSequentially<typename decltype(smlmk.m)::value_type>(buf, offset);
 			smlmk.m.emplace(val);
 		}
         return smlmk;
@@ -154,54 +149,23 @@ Two options: we only store VFC in DataStorage, in static section
 
 Required Feature - verify VFC type stored at the address
 */
-template <CStorage Storage, CSerializable Value, CSerializable ...Keys>
+template <CSerializable Value, CSerializable ...Keys>
     requires std::is_default_constructible_v<Value>
-class VirtualFileCatalog{
-    Storage &storage;
-    StorageAddress static_header_address;
-    StorageBuffer<> static_header_buffer;
-    StaticHeader *static_header;
-
+class VirtualFileCatalogImpl{
     using MLKM = SimpleMultiLevelKeyMap<Value, Keys...>;
     MLKM mlkm;
-
-    static constexpr uint64_t VFC_MAGIC = 0x5544F79A;
-    static constexpr size_t DEFAULT_ALLOC_SIZE = (1 << 10); //1KB
-
-    void init_vfc(){
-        ASSERT_ON(static_header_address.size < szeimpl::size(StaticHeader{}));
-        if(static_header->magic != VFC_MAGIC){
-            //new
-            static_header->magic = VFC_MAGIC;
-            static_header->address = storage.template get_random_address(DEFAULT_ALLOC_SIZE);
-        } else {
-            //deserialize mlkm
-            mlkm = deserialize<MLKM>(storage, static_header->address);
-        }
-    }
 public:
-    // addr is at least szeimpl::size(StaticHeader{})
-    VirtualFileCatalog(Storage &storage, StorageAddress &addr): //TODO write test: simple,  VFC<VFC>
-        storage(storage),
-        static_header_address(addr),
-        static_header_buffer(storage.template writeb(static_header_address)),
-        static_header(static_header_buffer.get<StaticHeader>()) {
-            init_vfc();
-    }
-    VirtualFileCatalog(Storage &storage):
-        storage(storage),
-        static_header_address(storage.template get_static_section()),
-        static_header_buffer(storage.template writeb(static_header_address)),
-        static_header(static_header_buffer.get<StaticHeader>()) {
-            init_vfc();
-    }
-    ~VirtualFileCatalog(){
-        serialize(storage, mlkm, static_header->address);
-        storage.template commit(static_header_buffer);
-    }
+    VirtualFileCatalogImpl(MLKM &&mlkm):
+        mlkm(mlkm) {}
+    VirtualFileCatalogImpl() = default;
+    ~VirtualFileCatalogImpl() = default;
 
     Result add(const Keys&... keys, const Value &value){
         return mlkm.add(keys..., value);
+    }
+    bool has (const Keys&... keys){
+        //TODO
+        return false;
     }
     std::pair<bool, Value> get(const Keys&... keys){
         return mlkm.get(keys...);
@@ -220,38 +184,32 @@ public:
     Result serializeImpl(StorageBuffer<> &buffer) const {
         Result res = Result::Success;
         size_t offset = 0;
-        StorageBuffer buf;
-        std::string type_name{typeid(decltype(*this)).name()};
-    
-        buf = buffer.offset_advance(offset, szeimpl::size(type_name));
-        res = szeimpl::s(type_name, buf);
-    
-        buf = buffer.offset_advance(offset, szeimpl::size(mlkm));
-        res = szeimpl::s(mlkm, buf);
-        return res;
+
+        return SerializeSequentially(buffer, offset, mlkm);
     }
     //pointer to other storage - on which VFC opearates on
-    static VirtualFileCatalog<Storage, Value, Keys...>
+    template<CStorage Storage>
+    static VirtualFileCatalogImpl
         deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage) {
-            //TODO not implemented. should not be called. use construction
-            ASSERT_ON_MSG(false, "Not implemented. Use constructor instead");
             size_t offset = 0;
             auto buf = buffer;
-            auto type_name = szeimpl::d<std::string>(buf);
-            buf = buffer.advance_offset(offset, szeimpl::size(type_name));
-            ASSERT_ON(type_name != std::string{typeid(VirtualFileCatalog<Storage, Value, Keys...>).name()});
-            //verify type name
-            return VirtualFileCatalog<Value, Keys...>{storage};
+
+            auto [mlkm] = DeserializeSequentially<MLKM>(buf, offset);
+
+            return VirtualFileCatalogImpl{std::move(mlkm)};
     }
+    static VirtualFileCatalogImpl deserializeImpl(const StorageBufferRO<> &buffer) { throw std::bad_function_call(); }
     size_t getSizeImpl() const {
         std::string type_name{typeid(decltype(*this)).name()};
         return szeimpl::size(mlkm) + szeimpl::size(type_name);
     }
-    /*
-    static VirtualFileCatalog Create(DataStorage &storage){ //should it be a singleton?
-        VirtualFileCatalog vfc{storage};
-    }*/
 };
+
+template <CSerializable Value, CSerializable ...Keys>
+using TypedVirtualFileCatalog = TypedObject<VirtualFileCatalogImpl<Value, Keys...>>;
+
+template <CStorage Storage, CSerializable Value, CSerializable ...Keys>
+using VirtualFileCatalog = AutoStoredObject<TypedVirtualFileCatalog<Value, Keys...>, Storage>;
 
 /*
 (De)Serializing

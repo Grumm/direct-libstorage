@@ -78,17 +78,11 @@ public:
         ASSERT_ON(getSizeImpl() > buffer.allocated());
         size_t offset = 0;
 
-        auto buf = buffer.offset_advance(offset, szeimpl::size(max_id));
-        szeimpl::s(max_id, buf);
-
-        auto m_size = m.size();
-        buf = buffer.offset_advance(offset, szeimpl::size(m_size));
-        szeimpl::s(m_size, buf);
+        SerializeSequentially(buffer, offset, max_id, m.size());
 
         for(const auto &it: m){
             auto it_r_uptr = remove_uptr(it);
-            buf = buffer.offset_advance(offset, szeimpl::size(it_r_uptr));
-            szeimpl::s(it_r_uptr, buf);
+            SerializeSequentially(buffer, offset, it_r_uptr);
         }
         return Result::Success;
     }
@@ -97,14 +91,11 @@ public:
 
         size_t offset = 0;
         auto buf = buffer;
-        uid.max_id = szeimpl::d<decltype(uid.max_id)>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(uid.max_id));
+        auto [max_id, num] = DeserializeSequentially<decltype(uid.max_id), typename decltype(m)::size_type>(buf, offset);
+        uid.max_id = max_id;
 
-        auto num = szeimpl::d<typename decltype(m)::size_type>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(num));
         for(size_t i = 0; i < num; i++){
-            auto val = szeimpl::d<RemovedUPTR>(buf);
-            buf = buffer.advance_offset(offset, szeimpl::size(val));
+            auto [val] = DeserializeSequentially<RemovedUPTR>(buf, offset);
             uid.m.emplace(val.first, std::make_pair(val.second, std::unique_ptr<T>{}));
         }
         return uid;

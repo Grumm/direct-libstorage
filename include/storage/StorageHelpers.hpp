@@ -55,16 +55,15 @@ public:
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON(getSizeImpl() > buffer.allocated());
         size_t offset = 0;
-
-        auto buf = buffer.offset_advance(offset, szeimpl::size(data));
-        szeimpl::s(data, buf);
-
-        return Result::Success;
+        
+        return SerializeSequentially(buffer, offset, data);
     }
     static SetOrderedBySize<T> deserializeImpl(const StorageBufferRO<> &buffer) {
         auto buf = buffer;
-        auto data = szeimpl::d<std::multimap<SizeT, T>>(buf);
-        
+        size_t offset = 0;
+
+        auto [data] = DeserializeSequentially<std::multimap<SizeT, T>>(buf, offset);
+
         return SetOrderedBySize{std::move(data)};
     }
     size_t getSizeImpl() const {

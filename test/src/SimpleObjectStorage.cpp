@@ -23,7 +23,7 @@ TEST(SimpleObjectStorageTest, SimplePutGetCheck){
     
     auto index0 = os.put(TestObj{1});
     EXPECT_EQ(index0, 0);
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{1});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{1});
 }
 
 TEST(SimpleObjectStorageTest, SimplePutGetRef){
@@ -48,7 +48,7 @@ TEST(SimpleObjectStorageTest, SimplePutIndexGet){
     size_t index0 = 0;
     os.put(TestObj{1}, index0);
     EXPECT_TRUE(os.has(index0));
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{1});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{1});
 }
 
 TEST(SimpleObjectStorageTest, MultiplePutIndexGet){
@@ -62,8 +62,8 @@ TEST(SimpleObjectStorageTest, MultiplePutIndexGet){
     os.put(TestObj{5}, index1);
     EXPECT_TRUE(os.has(index0));
     EXPECT_TRUE(os.has(index1));
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{1});
-    EXPECT_EQ(os.get(index1, ObjectStorageAccess::Once), TestObj{5});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{1});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index1), TestObj{5});
 }
 
 TEST(SimpleObjectStorageTest, MultiplePutMixedGet){
@@ -80,9 +80,9 @@ TEST(SimpleObjectStorageTest, MultiplePutMixedGet){
     EXPECT_TRUE(os.has(index0));
     EXPECT_TRUE(os.has(index1));
     EXPECT_TRUE(os.has(index2));
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{1});
-    EXPECT_EQ(os.get(index1, ObjectStorageAccess::Once), TestObj{5});
-    EXPECT_EQ(os.get(index2, ObjectStorageAccess::Once), TestObj{10});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{1});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index1), TestObj{5});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index2), TestObj{10});
 }
 
 TEST(SimpleObjectStorageTest, SimplePutRValueGet){
@@ -91,9 +91,9 @@ TEST(SimpleObjectStorageTest, SimplePutRValueGet){
     SimpleObjectStorage<TestObj, decltype(storage)> os(storage, base);
     
     TestObj to1{1};
-    auto index0 = os.put(std::move(to1), ObjectStorageAccess::Once);
+    auto index0 = os.put(std::move(to1));
     EXPECT_EQ(index0, 0);
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{1});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{1});
 }
 
 TEST(SimpleObjectStorageTest, SimplePutOverwriteGet){
@@ -104,7 +104,7 @@ TEST(SimpleObjectStorageTest, SimplePutOverwriteGet){
     auto index0 = os.put(TestObj{1});
     os.put(TestObj{5}, index0);
     EXPECT_TRUE(os.has(index0));
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{5});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{5});
     os.clear(index0);
     EXPECT_FALSE(os.has(index0));
 }
@@ -125,7 +125,7 @@ TEST(SimpleObjectStorageTest, SimplePutGetSerialize){
     {
         auto os = deserialize<SimpleObjectStorage<TestObj, decltype(storage)>>(storage, os_addr, storage);
 
-        EXPECT_EQ(os.get(0, ObjectStorageAccess::Once), TestObj{1});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(0), TestObj{1});
     }
 }
 
@@ -141,11 +141,11 @@ TEST(SimpleObjectStorageTest, MultiplePutGetCheck){
     EXPECT_TRUE(os.has(index0));
     EXPECT_TRUE(os.has(index1));
     EXPECT_FALSE(os.has(2));
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{1});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{1});
     auto index2 = os.put(TestObj{10});
     EXPECT_EQ(index2, 2);
-    EXPECT_EQ(os.get(index1, ObjectStorageAccess::Once), TestObj{5});
-    EXPECT_EQ(os.get(index2, ObjectStorageAccess::Once), TestObj{10});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index1), TestObj{5});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index2), TestObj{10});
     EXPECT_TRUE(os.has(index0));
     EXPECT_TRUE(os.has(index1));
     EXPECT_TRUE(os.has(index2));
@@ -225,10 +225,10 @@ TEST(SimpleObjectStorageTest, MultiplePutClearManyTimes){
 
     EXPECT_FALSE(os.has(index0));
     EXPECT_FALSE(os.has(index1));
-    EXPECT_EQ(os.get(index2, ObjectStorageAccess::Once), TestObj{10});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index2), TestObj{10});
     EXPECT_FALSE(os.has(index3));
-    EXPECT_EQ(os.get(index4, ObjectStorageAccess::Once), TestObj{30});
-    EXPECT_EQ(os.get(index5, ObjectStorageAccess::Once), TestObj{40});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index4), TestObj{30});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index5), TestObj{40});
 }
 
 TEST(SimpleObjectStorageTest, MultiplePutClearRangeManyTimes){
@@ -245,12 +245,12 @@ TEST(SimpleObjectStorageTest, MultiplePutClearRangeManyTimes){
     os.clear(index3, index4 + 1);
     auto index5 = os.put(TestObj{40});
 
-    EXPECT_EQ(os.get(index0, ObjectStorageAccess::Once), TestObj{1});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index0), TestObj{1});
     EXPECT_FALSE(os.has(index1));
-    EXPECT_EQ(os.get(index2, ObjectStorageAccess::Once), TestObj{10});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index2), TestObj{10});
     EXPECT_FALSE(os.has(index3));
     EXPECT_FALSE(os.has(index4));
-    EXPECT_EQ(os.get(index5, ObjectStorageAccess::Once), TestObj{40});
+    EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index5), TestObj{40});
 }
 
 TEST(SimpleObjectStorageTest, MultipleSerializeDeserialize){
@@ -270,9 +270,9 @@ TEST(SimpleObjectStorageTest, MultipleSerializeDeserialize){
     {
         auto os = deserialize<SimpleObjectStorage<TestObj, decltype(storage)>>(storage, os_addr, storage);
 
-        EXPECT_EQ(os.get(0, ObjectStorageAccess::Once), TestObj{1});
-        EXPECT_EQ(os.get(1, ObjectStorageAccess::Once), TestObj{5});
-        EXPECT_EQ(os.get(2, ObjectStorageAccess::Once), TestObj{10});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(0), TestObj{1});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(1), TestObj{5});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(2), TestObj{10});
     }
 }
 
@@ -296,11 +296,11 @@ TEST(SimpleObjectStorageTest, MultiplePutClearOnceSerializeDeserialize){
     {
         auto os = deserialize<SimpleObjectStorage<TestObj, decltype(storage)>>(storage, os_addr, storage);
 
-        EXPECT_EQ(os.get(0, ObjectStorageAccess::Once), TestObj{1});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(0), TestObj{1});
         EXPECT_FALSE(os.has(1));
-        EXPECT_EQ(os.get(2, ObjectStorageAccess::Once), TestObj{10});
-        EXPECT_EQ(os.get(3, ObjectStorageAccess::Once), TestObj{20});
-        EXPECT_EQ(os.get(4, ObjectStorageAccess::Once), TestObj{30});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(2), TestObj{10});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(3), TestObj{20});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(4), TestObj{30});
     }
 }
 
@@ -329,10 +329,10 @@ TEST(SimpleObjectStorageTest, MultiplePutClearTwiceSerializeDeserialize){
 
         EXPECT_FALSE(os.has(0));
         EXPECT_FALSE(os.has(1));
-        EXPECT_EQ(os.get(2, ObjectStorageAccess::Once), TestObj{10});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(2), TestObj{10});
         EXPECT_FALSE(os.has(3));
-        EXPECT_EQ(os.get(4, ObjectStorageAccess::Once), TestObj{30});
-        EXPECT_EQ(os.get(5, ObjectStorageAccess::Once), TestObj{40});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(4), TestObj{30});
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(5), TestObj{40});
     }
 }
 

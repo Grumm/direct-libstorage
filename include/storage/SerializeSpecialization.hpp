@@ -104,24 +104,14 @@ public:
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
-        Result res = Result::Success;
 
         size_t offset = 0;
         const auto &obj = this->template getObjRef();
-        StorageBuffer buf = buffer.offset_advance(offset, szeimpl::size(obj.first));
-        res = szeimpl::s(obj.first, buf);
-        buf = buffer.offset_advance(offset, szeimpl::size(obj.second));
-        res = szeimpl::s(obj.second, buf);
-
-        return res;
+        return SerializeSequentially(buffer, offset, obj.first, obj.second);
     }
     constexpr size_t getSizeImpl() const {
-        size_t sum = 0;
-        std::apply([&sum](auto&&... arg){
-            ((sum += szeimpl::size(arg)),
-            ...);
-        }, this->template getObjRef());
-        return sum;
+        const auto &obj = this->template getObjRef();
+        return szeimpl::size(obj.first) + szeimpl::size(obj.second);
     }
 };
 
@@ -131,12 +121,8 @@ class BuiltinDeserializeImpl<std::pair<F, S>>: public BSIObjectWrapperDeserializ
 public:
     T getObj() const {
         size_t offset = 0;
-        auto buffer = this->buffer;
-        StorageBufferRO buf = buffer;
-        F f = szeimpl::d<F>(buf);
-        buffer.offset_advance(offset, szeimpl::size(f));
-        buf = buffer.offset(offset, buffer.size() - offset);
-        S s = szeimpl::d<S>(buf);
+        StorageBufferRO buf = this->buffer;
+        auto [f, s] = DeserializeSequentially<F, S>(buf, offset);
 
         return std::make_pair(f, s);
     }
@@ -219,39 +205,17 @@ public:
         ASSERT_ON_MSG(buffer.size() < getSizeImpl(), "Buffer size too small");
         Result res = Result::Success;
         size_t offset = 0;
+        const auto &obj = this->template getObjRef();
+        
         StorageBuffer buf;
         tuple_apply([&buf, buffer, &offset, &res](auto&&... arg){
             ((
-                buf = buffer.offset_advance(offset, szeimpl::size(arg)),
-                res = szeimpl::s<std::remove_cvref_t<decltype(arg)>>(arg, buf) /*TODO res && */
-            ),
-                ...);
-        }, this->template getObjRef());
+                res = SerializeSequentially(buffer, offset, arg) //std::remove_cvref_t<decltype(arg)>
+            ), ...);
+        }, obj);
         return res;
     }
 
-#if 0
-    template<size_t... I>
-    static BuiltinSerializeImpl<T> instantiateFromTuple(T &&t, std::index_sequence<I...>){
-        return BuiltinSerializeImpl<T>{std::get<I>(std::forward<T>(t))...};
-    }
-    template<CSerializable ...TArgs>
-    static BuiltinSerializeImpl<std::tuple<TArgs...>> deserializeImpl(const StorageBufferRO<> &buffer) {
-        size_t offset = 0;
-        StorageBufferRO buf = buffer;
-        std::tuple<TArgs...> tuple{};
-        std::apply([&buf, buffer, &offset](auto&... arg){
-            ((
-                buf = buffer.offset(offset, buffer.size() - offset),
-                *(const_cast<std::remove_const_t<std::remove_reference_t<decltype(arg)>> *>(&arg)) =
-                    szeimpl::d<std::remove_reference_t<decltype(arg)>>(buf),
-                offset += szeimpl::size(arg)
-            ),
-                ...);
-        }, tuple);
-        return BuiltinSerializeImpl{tuple};
-    }
-#endif
     constexpr size_t getSizeImpl() const {
         size_t sum = 0;
         std::apply([&sum](auto&&... arg){
@@ -268,12 +232,9 @@ class BuiltinDeserializeImpl<std::tuple<TArgs...>>: public BSIObjectWrapperDeser
 public:
     T getObj() const {
         size_t offset = 0;
-        auto buffer = this->buffer;
-        StorageBufferRO buf = buffer;
-        auto deserialize_argument = [&buf, buffer, &offset]<typename T>() -> T{
-            buf = buffer.offset(offset, buffer.size() - offset);
-            T t = szeimpl::d<T>(buf);
-            offset += szeimpl::size(t);
+        StorageBufferRO buf = this->buffer;
+        auto deserialize_argument = [&buf, &offset]<typename T>() -> T{
+            auto [t] = DeserializeSequentially<T>(buf, offset);
             return t;
         };
         return tuple_create<T>(deserialize_argument);
@@ -322,8 +283,7 @@ public:
 
         size_t size = obj.size();
         size += StoredSize * !!(size % StoredSize) - (size % StoredSize);
-        buf = buffer.offset_advance(offset, szeimpl::size(size));
-        res = szeimpl::s(size, buf);
+        res = SerializeSequentially(buffer, offset, size);
         
         size = obj.size();
         for(size_t i = 0; i < size; i += StoredSize){
@@ -337,8 +297,7 @@ public:
                     val |= (1ULL << j);
                 }
             }
-            buf = buffer.offset_advance(offset, szeimpl::size(val));
-            res = szeimpl::s(val, buf);
+            res = SerializeSequentially(buffer, offset, val);
         }
 
         return res;
@@ -359,24 +318,19 @@ class BuiltinDeserializeImpl<std::vector<bool>>: public BSIObjectWrapperDeserial
 public:
     T getObj() const {
         size_t offset = 0;
-        auto buffer = this->buffer;
-        StorageBufferRO buf = buffer;
+        StorageBufferRO buf = this->buffer;
         T vec;
 
-        size_t size = szeimpl::d<size_t>(buf);
+        auto [size] = DeserializeSequentially<size_t>(buf, offset);
         vec.resize(size, false);
-        buffer.offset_advance(offset, szeimpl::size(size));
-        buf = buffer.offset(offset, buffer.size() - offset);
         
         for(size_t i = 0; i < size; i += StoredSize){
-            StoredType chunk = szeimpl::d<StoredType>(buf);
+            auto [chunk] = DeserializeSequentially<StoredType>(buf, offset);
             for(size_t j = 0; j < StoredSize; j++){
                 if(chunk & (1ULL << j)){
                     vec[i + j] = true;
                 }
             }
-            buffer.offset_advance(offset, szeimpl::size(chunk));
-            buf = buffer.offset(offset, buffer.size() - offset);
         }
 
         return vec;
@@ -396,15 +350,12 @@ public:
 
         size_t offset = 0;
         const auto &obj = this->template getObjRef();
-        StorageBuffer buf;
 
         auto size = std::ranges::size(obj);
-        buf = buffer.offset_advance(offset, szeimpl::size(size));
-        res = szeimpl::s(size, buf);
+        res = SerializeSequentially(buffer, offset, size);
 
         auto ser = [&](const U &u){
-            buf = buffer.offset_advance(offset, szeimpl::size(u));
-            res = szeimpl::s(u, buf);
+            res = SerializeSequentially(buffer, offset, u);
         };
         std::ranges::for_each(obj, ser);
 
@@ -456,19 +407,13 @@ class BuiltinDeserializeImpl<T>: public BSIObjectWrapperDeserialize<T>{
 public:
     T getObj() const {
         size_t offset = 0;
-        auto buffer = this->buffer;
-        StorageBufferRO buf = buffer;
+        StorageBufferRO buf = this->buffer;
         T r;
 
-        auto size = szeimpl::d<std::ranges::range_size_t<T>>(buf);
-        buffer.offset_advance(offset, szeimpl::size(size));
-        buf = buffer.offset(offset, buffer.size() - offset);
+        auto [size] = DeserializeSequentially<std::ranges::range_size_t<T>>(buf, offset);
         
         for(size_t i = 0; i < size; i++){
-            auto u = szeimpl::d<U>(buf);
-            buffer.offset_advance(offset, szeimpl::size(u));
-            buf = buffer.offset(offset, buffer.size() - offset);
-
+            auto [u] = DeserializeSequentially<U>(buf, offset);
             wrapped_emplace(r, std::move(u));
         }
 

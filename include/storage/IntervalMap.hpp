@@ -398,15 +398,12 @@ public:
     Result serializeImpl(StorageBuffer<> &buffer) const {
         ASSERT_ON(getSizeImpl() > buffer.allocated());
         size_t offset = 0;
-
-        auto buf = buffer.offset_advance(offset, szeimpl::size(m));
-        szeimpl::s(m, buf);
-
-        return Result::Success;
+        return SerializeSequentially(buffer, offset, m);
     }
     static IntervalMap<K, V> deserializeImpl(const StorageBufferRO<> &buffer) {
         auto buf = buffer;
-        auto m = szeimpl::d<std::map<K, std::pair<K, V>>>(buf);
+        size_t offset = 0;
+        auto [m] = DeserializeSequentially<std::map<K, std::pair<K, V>>>(buf, offset);
         
         return IntervalMap{std::move(m)};
     }

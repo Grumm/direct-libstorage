@@ -147,19 +147,8 @@ public:
     Result serializeImpl(StorageBuffer<> &buffer) const{
         ASSERT_ON(getSizeImpl() > buffer.allocated());
         size_t offset = 0;
-        auto buf = buffer.offset_advance(offset, szeimpl::size(intervals));
-        szeimpl::s(intervals, buf);
 
-        buf = buffer.offset_advance(offset, szeimpl::size(unmapped));
-        szeimpl::s(unmapped, buf);
-
-        buf = buffer.offset_advance(offset, szeimpl::size(empty));
-        szeimpl::s(empty, buf);
-
-        buf = buffer.offset_advance(offset, szeimpl::size(max));
-        szeimpl::s(max, buf);
-
-        return Result::Success;
+        return SerializeSequentially(buffer, offset, intervals, unmapped, empty, max);
     }
 
     static VirtAddressMapping deserializeImpl(const StorageBufferRO<> &buffer) {
@@ -168,16 +157,14 @@ public:
         size_t offset = 0;
         auto buf = buffer;
 
-        vam.intervals = szeimpl::d<decltype(vam.intervals)>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(vam.intervals));
+        auto [intervals, unmapped, empty, max] = DeserializeSequentially<
+            decltype(vam.intervals), decltype(vam.unmapped), decltype(vam.empty), decltype(vam.max)
+        >(buf, offset);
 
-        vam.unmapped = szeimpl::d<decltype(vam.unmapped)>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(vam.unmapped));
-
-        vam.empty = szeimpl::d<decltype(vam.empty)>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(vam.empty));
-
-        vam.max = szeimpl::d<decltype(vam.max)>(buf);
+        vam.intervals = intervals;
+        vam.unmapped = unmapped;
+        vam.empty = empty;
+        vam.max = max;
 
         return vam;
     }
@@ -313,13 +300,14 @@ public:
         StorageBuffer metadata_buf{rma.writeb(0, sizeof(FileMetadata))};
         FileMetadata *fm = metadata_buf.template get<FileMetadata>();
         *fm = metadata;
+        //commit
     }
 
     Result serializeImpl(StorageBuffer<> &buffer) const {
         return szeimpl::s(rma, buffer);
     }
     static SimpleStorage<R> deserializeImpl(const StorageBufferRO<> &buffer, uint32_t id = DataStorageBase::UniqueIDInterface::DEFAULT) {
-        return SimpleStorage<R>{R{szeimpl::d<R>(buffer)}, id};
+        return SimpleStorage<R>{szeimpl::d<R>(buffer), id};
     }
     size_t getSizeImpl() const{
         return szeimpl::size(rma);

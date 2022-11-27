@@ -101,7 +101,7 @@ class SimpleObjectStorage{
         storage(storage), base(base), states(states), 
         addresses(addresses), unused_addresses(unused_addresses), count{addresses.size()} {}
 public:
-    SimpleObjectStorage(Storage &storage, StorageAddress base):
+    SimpleObjectStorage(Storage &storage, const StorageAddress &base):
         storage(storage), base(base), tail_addr(base), count{0} {}
     static constexpr ObjectStorageAccess DefaultAccess = ObjectStorageAccess::Once;
     bool has(size_t index) const {
@@ -113,7 +113,9 @@ public:
     size_t size() const {
         return count;
     }
-    T get(size_t index, ObjectStorageAccess access){
+    
+    template <ObjectStorageAccess Access = DefaultAccess>
+    T get(size_t index){
         ASSERT_ON(!has(index));
         auto it = objects.find(index);
         if (it != objects.end()){
@@ -121,7 +123,7 @@ public:
         }
         auto addr = getAddrByIndex(index);
         auto t = deserialize<T>(storage, addr);
-        switch(access){
+        switch(Access){
             case ObjectStorageAccess::Once:
             case ObjectStorageAccess::Caching:
                 break;
@@ -168,27 +170,29 @@ public:
             clear(i);
         }
     }
-    void put(const T &t, size_t index){
-        objects.erase(index);
-        //there could be some object with this index already
-        putImpl(t, index, true);
-    }
     size_t put(const T &t){
         size_t index = getNewIndex();
         putImpl(t, index, false);
         return index;
     }
-    void put(T &&t, size_t index, ObjectStorageAccess access){
+    void put(const T &t, size_t index){
         objects.erase(index);
+        //there could be some object with this index already
         putImpl(t, index, true);
-        if(access == ObjectStorageAccess::Keep){
-            objects.emplace(index, std::forward<T>(t));
-        }
     }
+    template <ObjectStorageAccess Access = DefaultAccess>
     size_t put(T &&t, ObjectStorageAccess access){
         size_t index = getNewIndex();
-        put(std::forward<T>(t), index, access);
+        put<Access>(std::forward<T>(t), index);
         return index;
+    }
+    template <ObjectStorageAccess Access = DefaultAccess>
+    void put(T &&t, size_t index){
+        objects.erase(index);
+        putImpl(t, index, true);
+        if(Access == ObjectStorageAccess::Keep){
+            objects.emplace(index, std::forward<T>(t));
+        }
     }
 
     /* Serialize */
@@ -196,35 +200,15 @@ public:
     Result serializeImpl(StorageBuffer<> &buffer) const {
         Result res = Result::Success;
         size_t offset = 0;
-        StorageBuffer buf;
-    
-        buf = buffer.offset_advance(offset, szeimpl::size(base));
-        res = szeimpl::s(base, buf);
-    
-        buf = buffer.offset_advance(offset, szeimpl::size(states));
-        res = szeimpl::s(states, buf);
-    
-        buf = buffer.offset_advance(offset, szeimpl::size(addresses));
-        res = szeimpl::s(addresses, buf);
-    
-        buf = buffer.offset_advance(offset, szeimpl::size(unused_addresses));
-        res = szeimpl::s(unused_addresses, buf);
-        return res;
+
+        return SerializeSequentially(buffer, offset, base, states, addresses, unused_addresses);
     }
     static SimpleObjectStorage<T, Storage> deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage) {
         size_t offset = 0;
         auto buf = buffer;
-
-        StorageAddress base = szeimpl::d<StorageAddress>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(base));
-
-        auto states = szeimpl::d<std::vector<bool>>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(states));
-
-        auto addresses = szeimpl::d<std::unordered_map<size_t, StorageAddress>>(buf);
-        buf = buffer.advance_offset(offset, szeimpl::size(addresses));
-
-        auto unused_addresses = szeimpl::d<SetOrderedBySize<StorageAddress>>(buf);
+        auto [base, states, addresses, unused_addresses] = DeserializeSequentially<
+                StorageAddress, std::vector<bool>, std::unordered_map<size_t, StorageAddress>, SetOrderedBySize<StorageAddress>
+            >(buf, offset);
 
         return SimpleObjectStorage<T, Storage>{storage, base, std::move(states), std::move(addresses), std::move(unused_addresses)};
     }

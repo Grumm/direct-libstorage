@@ -7,11 +7,16 @@
 #include <exception>
 #include <string_view>
 
+static inline const char *function_name(){
+	//return location.function_name();
+	return "";
+}
+
 #define __LOG(LEVEL, str, ...) do{ \
 		auto location = std::source_location::current(); \
 		fprintf(stderr, (std::string{"[%s %s %s:%d '%s'] "} + str + std::string{"\n"}).c_str(), \
 			#LEVEL, __TIME__, std::filesystem::path(location.file_name()).filename().c_str(), \
-			location.line(), location.function_name(), ##__VA_ARGS__); \
+			location.line(), function_name(), ##__VA_ARGS__); \
 	}while(0)
 #define LOG_INFO(str, ...) __LOG(INFO, str, ##__VA_ARGS__)
 #define LOG_WARNING(str, ...) __LOG(WARNING, str, ##__VA_ARGS__)
