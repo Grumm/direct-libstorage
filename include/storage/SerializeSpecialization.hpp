@@ -338,7 +338,7 @@ public:
 };
 
 template<typename T>
-requires CSerializableRange<T>
+requires CSerializableRange<T, std::ranges::range_value_t<T>>
 class BuiltinSerializeImpl<T>: public BSIObjectWrapperSerialize<T>{
     using U = std::ranges::range_value_t<T>;
 public:
@@ -385,8 +385,6 @@ template<typename T, typename... Args>
 concept has_positional_emplace = requires(T& t, T::const_iterator it, Args&&... args) {
     t.emplace(it, std::forward<Args>(args)...);
 };
-
-
 
 template<typename T, typename... Args>
 requires has_absolute_emplace<T, Args...>

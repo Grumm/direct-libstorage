@@ -30,7 +30,7 @@ static void init_libstorage(std::filesystem::path path){
     std::filesystem::create_directories(path, ec);
     ASSERT_ON_MSG(ec, ec.message());
     path.replace_filename(filename);
-    g_storage_base.reset(new GStorageType(FileRMA<24>{filename}, StorageManager<GStorageType>::METADATA_SIZE));
+    g_storage_base.reset(new GStorageType(FileRMA<GStorageSize>{filename}, StorageManager<GStorageType>::METADATA_SIZE));
     g_storage_manager.reset(new StorageManager<GStorageType>(*g_storage_base.get()));
     g_storage_manager->init();
 }

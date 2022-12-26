@@ -93,6 +93,7 @@ public:
             GetGlobalUniqueIDStorage().registerInstance<DataStorage>(*this);
         } */
     }
+    //TODO protected?
     virtual ~DataStorageBase(){}
 };
 
@@ -161,7 +162,7 @@ struct StaticHeader{
 
 template<typename T>
 constexpr uint32_t make_magic(){
-    //TODO use typename and constexpr hash function
+    //TODO use typename and constexpr hash function. problem is to make it consistent
     return 0xDEEFAB;
 }
 
@@ -171,10 +172,7 @@ class TypedObject{
 public:
     //we assume address already contains the object
 
-    TypedObject(T &&t):
-            object(std::forward<T>(t)) { }
-
-    TypedObject(uint32_t magic, T &&t):
+    TypedObject(T &&t, uint32_t magic = STORAGE_MAGIC):
             object(std::forward<T>(t)) {
         if (verify(magic)){
             throw std::invalid_argument("Incorrect magic " + std::to_string(magic) + " != " +
@@ -213,6 +211,7 @@ public:
         return TypedObject{object};
     }
     static TypedObject deserializeImpl(const StorageBufferRO<> &) { throw std::bad_function_call(); };
+
     constexpr size_t getSizeImpl() const {
         return szeimpl::size(uint32_t{}) + szeimpl::size(object);
     }

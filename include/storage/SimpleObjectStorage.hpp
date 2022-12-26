@@ -6,6 +6,7 @@
 #include <storage/DataStorage.hpp>
 #include <storage/SerializeImpl.hpp>
 #include <storage/Serialize.hpp>
+#include <storage/ObjectStorage.hpp>
 
 
 //Implements CObjectStorageImpl
@@ -103,7 +104,11 @@ class SimpleObjectStorage{
 public:
     SimpleObjectStorage(Storage &storage, const StorageAddress &base):
         storage(storage), base(base), tail_addr(base), count{0} {}
+    SimpleObjectStorage(Storage &storage):
+        SimpleObjectStorage(storage, storage.template get_random_address(DEFAULT_ALLOC_SIZE)) {}
+
     static constexpr ObjectStorageAccess DefaultAccess = ObjectStorageAccess::Once;
+    static constexpr size_t DEFAULT_ALLOC_SIZE = (1UL << 20);
     bool has(size_t index) const {
         if (index >= states.size()){
             return false;
@@ -136,6 +141,7 @@ public:
         return t;
     }
     //implies Keep
+    template <ObjectStorageAccess Access = DefaultAccess>
     T &getRef(size_t index){
         ASSERT_ON(!has(index));
         auto it = objects.find(index);
@@ -150,8 +156,9 @@ public:
         //TODO throw if !emplaced
         return it2->second;
     }
+    template <ObjectStorageAccess Access = DefaultAccess>
     const T &getCRef(size_t index){
-        return getRef(index);
+        return getRef<Access>(index);
     }
 
     void clear(size_t i){
@@ -170,18 +177,23 @@ public:
             clear(i);
         }
     }
+    template <ObjectStorageAccess Access = DefaultAccess>
     size_t put(const T &t){
         size_t index = getNewIndex();
-        putImpl(t, index, false);
+        put<Access>(std::forward<const T &>(t), index);
         return index;
     }
+    template <ObjectStorageAccess Access = DefaultAccess>
     void put(const T &t, size_t index){
         objects.erase(index);
-        //there could be some object with this index already
         putImpl(t, index, true);
+        if(Access == ObjectStorageAccess::Keep){
+            objects.emplace(index, std::forward<const T &>(t));
+        }
     }
+    /*
     template <ObjectStorageAccess Access = DefaultAccess>
-    size_t put(T &&t, ObjectStorageAccess access){
+    size_t put(T &&t){
         size_t index = getNewIndex();
         put<Access>(std::forward<T>(t), index);
         return index;
@@ -191,8 +203,41 @@ public:
         objects.erase(index);
         putImpl(t, index, true);
         if(Access == ObjectStorageAccess::Keep){
-            objects.emplace(index, std::forward<T>(t));
+            objects.emplace(index, std::forward<T &&>(t));
         }
+    }*/
+
+    template<typename F>
+    requires COSForEachCallable<F, T>
+    void for_each(size_t start, size_t end, F &f){
+        for(size_t i = start; i <= end; i++){
+            if(!has(i))
+                continue;
+            f(i, getRef(i));
+        }
+    }
+    template<typename F>
+    requires COSForEachCallable<F, const T>
+    void for_each(size_t start, size_t end, F &f){
+        for(size_t i = start; i <= end; i++){
+            if(!has(i))
+                continue;
+            f(i, getCRef(i));
+        }
+    }
+    template<typename F>
+    requires COSForEachEmptyCallable<F, T>
+    size_t for_each_empty(size_t start, size_t end, F &f){
+        size_t count = 0;
+        for(size_t i = start; i <= end; i++){
+            if(has(i))
+                continue;
+            count++;
+
+            auto newobj = f(i);
+            put(std::move(newobj), i);
+        }
+        return count;
     }
 
     /* Serialize */
@@ -203,7 +248,7 @@ public:
 
         return SerializeSequentially(buffer, offset, base, states, addresses, unused_addresses);
     }
-    static SimpleObjectStorage<T, Storage> deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage) {
+    static SimpleObjectStorage deserializeImpl(const StorageBufferRO<> &buffer, Storage &storage) {
         size_t offset = 0;
         auto buf = buffer;
         auto [base, states, addresses, unused_addresses] = DeserializeSequentially<
@@ -212,8 +257,9 @@ public:
 
         return SimpleObjectStorage<T, Storage>{storage, base, std::move(states), std::move(addresses), std::move(unused_addresses)};
     }
-    static SimpleObjectStorage<T, Storage> deserializeImpl(const StorageBufferRO<> &) { throw std::bad_function_call(); };
+    static SimpleObjectStorage deserializeImpl(const StorageBufferRO<> &) { throw std::bad_function_call(); };
+
     size_t getSizeImpl() const {
-        return szeimpl::size(base) + szeimpl::size(states) + szeimpl::size(addresses) + szeimpl::size(unused_addresses);
+        return SizeAccumulate(base, states, addresses, unused_addresses);
     }
 };

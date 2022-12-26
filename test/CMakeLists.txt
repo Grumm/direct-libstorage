@@ -24,6 +24,7 @@ macro(package_add_test TESTNAME)
     set_target_properties(${TESTNAME} PROPERTIES FOLDER tests)
 endmacro()
 
+package_add_test(ObjectStorage src/ObjectStorage.cpp)
 package_add_test(SimpleObjectStorage src/SimpleObjectStorage.cpp)
 package_add_test(StorageHelpers src/StorageHelpers.cpp)
 #package_add_test(ObjectInstanceStorage src/ObjectInstanceStorage.cpp)

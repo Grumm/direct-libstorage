@@ -9,10 +9,6 @@
 
 //#include <ObjectStorage.hpp>
 
-template<typename T>
-class ObjectStorage{
-
-};
 class ObjectAddress{
 
 };
@@ -97,7 +93,8 @@ template <typename T>
 requires sized_forward_range<T> && CSerializable<std::ranges::range_value_t<T>>
 struct is_serializable_range<T> : std::true_type { };
 
-template <typename T> concept CSerializableRange = is_serializable_range<T>::value;
+template <typename T, typename U = std::ranges::range_value_t<T>>
+concept CSerializableRange = is_serializable_range<T>::value && std::is_same_v<U, std::ranges::range_value_t<T>>;
 
 /****************************************************/
 template<typename T>
@@ -163,6 +160,16 @@ public:
 };
 
 /****************************************************/
+
+template <CSerializable T>
+constexpr size_t SizeAccumulate(const T &t){
+    return szeimpl::size(t);
+}
+
+template <CSerializable T, CSerializable ...Args>
+constexpr size_t SizeAccumulate(const T &t, Args... args){
+    return szeimpl::size(t) + SizeAccumulate(std::forward<Args>(args)...);
+};
 
 template <CSerializable T>
 Result SerializeOne(const StorageBuffer<> &buffer, size_t &offset, const T &t){

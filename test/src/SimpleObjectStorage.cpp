@@ -336,6 +336,131 @@ TEST(SimpleObjectStorageTest, MultiplePutClearTwiceSerializeDeserialize){
     }
 }
 
+TEST(SimpleObjectStorageTest, ForeachRangeSimple){
+    SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+    auto base = storage.get_random_address(OBJSTORAGE_MEM_ALLOC);
+    StorageAddress os_addr;
+    
+    {
+        SimpleObjectStorage<TestObj, decltype(storage)> os(storage, base);
+        
+        auto index0 = os.put(TestObj{1});
+        auto index1 = os.put(TestObj{5});
+        auto index2 = os.put(TestObj{10});
+
+        bool has0{false};
+        bool has1{false};
+        bool has2{false};
+        auto f = [&](size_t index, TestObj &obj){
+            switch(index){
+                case 0:
+                    EXPECT_FALSE(has0);
+                    has0 = true;
+                    EXPECT_EQ(obj, TestObj{1});
+                    break;
+                case 1:
+                    EXPECT_FALSE(has1);
+                    has1 = true;
+                    EXPECT_EQ(obj, TestObj{5});
+                    break;
+                case 2:
+                    EXPECT_FALSE(has2);
+                    has2 = true;
+                    EXPECT_EQ(obj, TestObj{10});
+                    break;
+                default:
+                    EXPECT_TRUE(false);
+                    break;
+            }
+        };
+        os.for_each(index0, index2, f);
+        EXPECT_TRUE(has0);
+        EXPECT_TRUE(has1);
+        EXPECT_TRUE(has2);
+    }
+}
+
+TEST(SimpleObjectStorageTest, ForeachRangeSkip){
+    SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+    auto base = storage.get_random_address(OBJSTORAGE_MEM_ALLOC);
+    StorageAddress os_addr;
+    
+    {
+        SimpleObjectStorage<TestObj, decltype(storage)> os(storage, base);
+        
+        auto index0 = os.put(TestObj{1});
+        auto index1 = os.put(TestObj{5});
+        auto index2 = os.put(TestObj{10});
+        os.clear(index1);
+
+        bool has0{false};
+        bool has1{false};
+        bool has2{false};
+        auto f = [&](size_t index, TestObj &obj){
+            switch(index){
+                case 0:
+                    EXPECT_FALSE(has0);
+                    has0 = true;
+                    EXPECT_EQ(obj, TestObj{1});
+                    break;
+                case 2:
+                    EXPECT_FALSE(has2);
+                    has2 = true;
+                    EXPECT_EQ(obj, TestObj{10});
+                    break;
+                default:
+                    EXPECT_TRUE(false);
+                    break;
+            }
+        };
+        os.for_each(index0, index2, f);
+        EXPECT_TRUE(has0);
+        EXPECT_FALSE(has1);
+        EXPECT_TRUE(has2);
+    }
+}
+
+TEST(SimpleObjectStorageTest, ForeachIndexEmplace){
+    SimpleRamStorage<MEMORYSIZE> storage{MemoryRMA<MEMORYSIZE>{}};
+    auto base = storage.get_random_address(OBJSTORAGE_MEM_ALLOC);
+    StorageAddress os_addr;
+    
+    {
+        SimpleObjectStorage<TestObj, decltype(storage)> os(storage, base);
+        
+        auto index0 = os.put(TestObj{1});
+        auto index1 = os.put(TestObj{5});
+        auto index2 = os.put(TestObj{10});
+        os.clear(index1);
+
+        bool has0{false};
+        bool has1{false};
+        bool has2{false};
+        auto f = [&](size_t index) ->TestObj {
+            switch(index){
+                case 1:
+                    EXPECT_FALSE(has1);
+                    has1 = true;
+                    return TestObj{6};
+                    break;
+                default:
+                    EXPECT_TRUE(false);
+                    throw std::logic_error("should not happen");
+                    break;
+            }
+        };
+        os.for_each_empty(index0, index2, f);
+        EXPECT_FALSE(has0);
+        EXPECT_TRUE(has1);
+        EXPECT_FALSE(has2);
+
+        EXPECT_TRUE(os.has(index0));
+        EXPECT_TRUE(os.has(index1));
+        EXPECT_TRUE(os.has(index2));
+        EXPECT_EQ(os.get<ObjectStorageAccess::Once>(index1), TestObj{6});
+    }
+}
+
 //TODO wrapper for template concept, not implementation
 //TODO access modificators check, especially ::Keep
 
